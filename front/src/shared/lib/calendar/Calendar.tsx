@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Calendar1, ChevronLeft, ChevronRight } from "lucide-react";
 
 type Day = { date: Date; inMonth: boolean; isToday: boolean; iso: string };
 
@@ -86,19 +86,17 @@ export default function Calendar({
     setView(new Date(view.getFullYear(), view.getMonth() - 1, 1));
   const nextMonth = () =>
     setView(new Date(view.getFullYear(), view.getMonth() + 1, 1));
-  const goToday = () => setView(new Date());
+
 
   return (
     <div
-      className={`relative flex h-full w-full flex-col overflow-hidden rounded-3xl border border-emerald-100 bg-white/95 shadow-[0_24px_60px_-32px_rgba(16,185,129,0.6)] backdrop-blur ${className}`}
+      className={`relative flex h-full w-full flex-col overflow-hidden rounded-3xl border border-emerald-100 bg-white/95 backdrop-blur ${className}`}
     >
-      <div className="flex items-start justify-between border-b border-emerald-100 bg-gradient-to-r from-emerald-500 via-emerald-500 to-emerald-600 px-6 py-5 text-white">
+      <div className="flex items-start justify-between border-b border-emerald-100 bg-gradient-to-r from-[#8b95f0] via-[#644fee] to-[rgb(68,51,228)] px-6 py-5 text-white">
         <div>
-          <span className="text-[11px] font-semibold uppercase tracking-[0.35em] text-emerald-100/70">
-            Monthly Overview
-          </span>
-          <p className="mt-1 text-[28px] font-bold leading-tight">
-            {year}년 {month}월
+          
+          <p className="mt-1 text-[28px] font-bold leading-tight flex gap-2">
+            {year}년 {month}월 <Calendar1 className="items-center"/>
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -109,13 +107,13 @@ export default function Calendar({
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <button
+          {/* <button
             type="button"
-            onClick={goToday}
+            onClick={goToday} 
             className="rounded-full border border-white/40 bg-white/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.25em] text-white transition hover:bg-white/25"
           >
             오늘
-          </button>
+          </button> */}
           <button
             type="button"
             onClick={nextMonth}
@@ -135,8 +133,8 @@ export default function Calendar({
               key === "sun"
                 ? "text-rose-500"
                 : key === "sat"
-                ? "text-sky-500"
-                : "text-emerald-600",
+                  ? "text-sky-500"
+                  : "text-emerald-600",
             ].join(" ")}
           >
             {label}
@@ -144,20 +142,20 @@ export default function Calendar({
         ))}
       </div>
 
-      <div className="grid grid-cols-7 grid-rows-6 gap-3 px-4 pb-6 text-sm text-emerald-900 sm:px-6">
+      <div className="grid grid-cols-7 grid-rows-6 gap-1.5 px-4 pb-6 text-sm text-emerald-900 sm:px-6">
         {days.map((d) => {
           const selected = value && isSameDay(d.date, value);
           const dayOfWeek = d.date.getDay();
           const baseClasses = [
             "relative flex h-16 w-full flex-col justify-between rounded-2xl border-1 bg-white/75 px-3 pb-3 pt-2 text-right text-sm font-semibold transition-all duration-200",
-            d.inMonth ? "text-emerald-900" : "text-emerald-200 opacity-50",
+            d.inMonth ? "text-emerald-900" : "text-[#eee] opacity-100",
             d.inMonth && dayOfWeek === 0 && !selected ? "text-rose-500" : "",
             d.inMonth && dayOfWeek === 6 && !selected ? "text-sky-500" : "",
             selected
-              ? "bg-gradient-to-br from-emerald-500 to-emerald-400 text-white shadow-xl ring-2 ring-emerald-300"
+              ? "bg-gradient-to-br from-blue-500 to-blue-400 text-white shadow-xl ring-2 "
               : d.isToday
-              ? "border-emerald-200 bg-white shadow-inner ring-1 ring-emerald-200/80"
-              : "shadow-sm hover:-translate-y-0.5 hover:shadow-md",
+                ? "border bg-white shadow-inner "
+                : "shadow-sm hover:-translate-y-0.5 hover:shadow-md",
           ];
 
           return (
@@ -169,17 +167,9 @@ export default function Calendar({
               aria-pressed={!!selected}
             >
               <span className="text-lg leading-none">{d.date.getDate()}</span>
-              {selected ? (
-                <span className="text-[10px] font-medium uppercase tracking-[0.3em] text-emerald-50/90">
-                  
-                </span>
-              ) : d.isToday ? (
-                <span className="text-[10px] font-medium uppercase tracking-[0.3em] text-emerald-500/80">
+              {d.isToday && (
+                <span className={`text-[12px] tracking-[0.3em] ${selected ? "text-white" : "text-black"}`}>
                   오늘
-                </span>
-              ) : (
-                <span className="text-[10px] font-medium uppercase tracking-[0.3em] text-transparent">
-                  space
                 </span>
               )}
             </button>

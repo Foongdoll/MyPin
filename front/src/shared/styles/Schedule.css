@@ -1,0 +1,38 @@
+.schedule_tab_active_btn {
+  background: linear-gradient(-25deg, #a5b4fc, #60a5fa, #3b82f6, #2563eb);
+  background-size: 300% 300%;
+  animation: colorMoveLeft 6s linear infinite;
+  color: white;     
+  cursor: pointer;
+  transition: transform 0.2s ease;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+
+.schedule_tab_active_btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
+}
+
+.schedule_tab_btn {
+  background: #eff6ff;
+  color: #2563eb;  
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.schedule_tab_btn:hover {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+@keyframes colorMoveLeft {
+  0% {
+    background-position: 0% 50%;    
+  }
+  100% {
+    background-position: -300% 50%;
+  }
+}
