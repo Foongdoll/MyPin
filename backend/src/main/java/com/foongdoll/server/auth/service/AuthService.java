@@ -80,4 +80,9 @@ public class AuthService {
                 .accessToken(newAccessToken)
                 .build();
     }
+
+    @Transactional
+    public void logout(String refreshToken) {
+        refreshTokenService.revokeToken(refreshToken);
+    }
 }

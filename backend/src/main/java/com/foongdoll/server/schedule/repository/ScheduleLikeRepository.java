@@ -9,4 +9,5 @@ public interface ScheduleLikeRepository extends JpaRepository<ScheduleLike, Long
     Optional<ScheduleLike> findByScheduleIdAndUserId(Long scheduleId, Long userId);
     boolean existsByScheduleIdAndUserId(Long scheduleId, Long userId);
     long countByScheduleId(Long scheduleId);
+    void deleteByScheduleId(Long scheduleId);
 }

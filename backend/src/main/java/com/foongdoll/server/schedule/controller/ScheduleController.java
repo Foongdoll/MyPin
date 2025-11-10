@@ -1,8 +1,10 @@
 package com.foongdoll.server.schedule.controller;
 
 import com.foongdoll.server.common.response.ApiResponse;
+import com.foongdoll.server.schedule.dto.ScheduleCalendarResponse;
 import com.foongdoll.server.schedule.dto.ScheduleCommentRequest;
 import com.foongdoll.server.schedule.dto.ScheduleCommentResponse;
+import com.foongdoll.server.schedule.dto.ScheduleCommentUpdateRequest;
 import com.foongdoll.server.schedule.dto.ScheduleCreateRequest;
 import com.foongdoll.server.schedule.dto.ScheduleListResponse;
 import com.foongdoll.server.schedule.dto.ScheduleReactionResponse;
@@ -13,9 +15,11 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -40,6 +44,14 @@ public class ScheduleController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
+    @GetMapping("/calendar")
+    public ResponseEntity<ApiResponse<ScheduleCalendarResponse>> getCalendarSummary(
+            @RequestParam(required = false) String month
+    ) {
+        ScheduleCalendarResponse response = scheduleService.getCalendarSummary(month);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
     @PostMapping
     public ResponseEntity<ApiResponse<ScheduleResponse>> createSchedule(
             @AuthenticationPrincipal AuthenticatedUser user,
@@ -47,6 +59,25 @@ public class ScheduleController {
     ) {
         ScheduleResponse response = scheduleService.createSchedule(request, user.getId());
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @PutMapping("/{scheduleId}")
+    public ResponseEntity<ApiResponse<ScheduleResponse>> updateSchedule(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long scheduleId,
+            @Valid @RequestBody ScheduleCreateRequest request
+    ) {
+        ScheduleResponse response = scheduleService.updateSchedule(scheduleId, request, user.getId());
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @DeleteMapping("/{scheduleId}")
+    public ResponseEntity<ApiResponse<Void>> deleteSchedule(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long scheduleId
+    ) {
+        scheduleService.deleteSchedule(scheduleId, user.getId());
+        return ResponseEntity.ok(ApiResponse.success(null));
     }
 
     @GetMapping("/{scheduleId}/comments")
@@ -64,6 +95,26 @@ public class ScheduleController {
     ) {
         ScheduleCommentResponse response = scheduleService.addComment(scheduleId, request);
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @PutMapping("/{scheduleId}/comments/{commentId}")
+    public ResponseEntity<ApiResponse<ScheduleCommentResponse>> updateComment(
+            @PathVariable Long scheduleId,
+            @PathVariable Long commentId,
+            @Valid @RequestBody ScheduleCommentUpdateRequest request
+    ) {
+        ScheduleCommentResponse response = scheduleService.updateComment(scheduleId, commentId, request);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @DeleteMapping("/{scheduleId}/comments/{commentId}")
+    public ResponseEntity<ApiResponse<Void>> deleteComment(
+            @PathVariable Long scheduleId,
+            @PathVariable Long commentId,
+            @RequestParam String author
+    ) {
+        scheduleService.deleteComment(scheduleId, commentId, author);
+        return ResponseEntity.ok(ApiResponse.success(null));
     }
 
     @GetMapping("/{scheduleId}/likes")

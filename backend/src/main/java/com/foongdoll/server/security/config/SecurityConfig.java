@@ -28,7 +28,8 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .headers(headers -> headers.frameOptions(frameOptions -> frameOptions.disable()))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**", "/h2-console/**", "/docs/**", "/actuator/**").permitAll()
+                        .requestMatchers("/api/auth/**", "/h2-console/**", "/docs/**", "/actuator/**", "/api/schedules/**").permitAll()
+//                        .requestMatchers("/api/schedules/**").hasRole("USER")
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticateFilter, UsernamePasswordAuthenticationFilter.class);

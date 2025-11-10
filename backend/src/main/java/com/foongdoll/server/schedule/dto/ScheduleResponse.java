@@ -17,4 +17,6 @@ public class ScheduleResponse {
     private final String place;
     private final Double x;
     private final Double y;
+    private final Long ownerId;
+    private final String ownerName;
 }

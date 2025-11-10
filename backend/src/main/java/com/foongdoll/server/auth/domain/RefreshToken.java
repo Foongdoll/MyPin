@@ -52,4 +52,10 @@ public class RefreshToken {
     public boolean isExpired() {
         return expiresAt.isBefore(Instant.now());
     }
+
+    public String renew(long ttlMillis) {
+        this.token = UUID.randomUUID().toString();
+        this.expiresAt = Instant.now().plusMillis(ttlMillis);
+        return this.token;
+    }
 }

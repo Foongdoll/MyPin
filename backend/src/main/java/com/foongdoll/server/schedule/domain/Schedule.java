@@ -85,4 +85,13 @@ public class Schedule {
             this.participants.addAll(participants);
         }
     }
+
+    public void update(String title, LocalDate startDate, LocalDate endDate, List<String> participants, String memo, String place) {
+        this.title = title;
+        this.startDate = startDate;
+        this.endDate = endDate;
+        setParticipants(participants);
+        this.memo = memo;
+        this.place = place;
+    }
 }

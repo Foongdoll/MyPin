@@ -48,4 +48,8 @@ public class ScheduleComment {
     void onCreate() {
         this.createdAt = OffsetDateTime.now(ZoneOffset.UTC);
     }
+
+    public void updateContent(String content) {
+        this.content = content;
+    }
 }

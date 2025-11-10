@@ -3,8 +3,11 @@ package com.foongdoll.server.schedule.service;
 import com.foongdoll.server.schedule.domain.Schedule;
 import com.foongdoll.server.schedule.domain.ScheduleComment;
 import com.foongdoll.server.schedule.domain.ScheduleLike;
+import com.foongdoll.server.schedule.dto.ScheduleCalendarDayResponse;
+import com.foongdoll.server.schedule.dto.ScheduleCalendarResponse;
 import com.foongdoll.server.schedule.dto.ScheduleCommentRequest;
 import com.foongdoll.server.schedule.dto.ScheduleCommentResponse;
+import com.foongdoll.server.schedule.dto.ScheduleCommentUpdateRequest;
 import com.foongdoll.server.schedule.dto.ScheduleCreateRequest;
 import com.foongdoll.server.schedule.dto.ScheduleListResponse;
 import com.foongdoll.server.schedule.dto.ScheduleReactionResponse;
@@ -20,16 +23,19 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.time.LocalDate;
+import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
-import java.time.OffsetDateTime;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
 
 @Service
@@ -64,6 +70,45 @@ public class ScheduleService {
                 .build();
     }
 
+    @Transactional(readOnly = true)
+    public ScheduleCalendarResponse getCalendarSummary(String month) {
+        LocalDate monthStart = resolveMonthStart(month);
+        LocalDate monthEnd = monthStart.plusMonths(1).minusDays(1);
+
+        List<Schedule> schedules = scheduleRepository.findByDateRange(monthStart, monthEnd);
+        Map<LocalDate, LongAdder> dayCounters = new HashMap<>();
+
+        for (Schedule schedule : schedules) {
+            LocalDate start = schedule.getStartDate();
+            LocalDate end = schedule.getEndDate();
+
+            if (start == null || end == null) {
+                continue;
+            }
+
+            LocalDate cursor = start.isBefore(monthStart) ? monthStart : start;
+            LocalDate limit = end.isAfter(monthEnd) ? monthEnd : end;
+
+            while (!cursor.isAfter(limit)) {
+                dayCounters.computeIfAbsent(cursor, __ -> new LongAdder()).increment();
+                cursor = cursor.plusDays(1);
+            }
+        }
+
+        List<ScheduleCalendarDayResponse> days = dayCounters.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> ScheduleCalendarDayResponse.builder()
+                        .date(entry.getKey().format(DATE_FORMATTER))
+                        .count(entry.getValue().longValue())
+                        .build())
+                .toList();
+
+        return ScheduleCalendarResponse.builder()
+                .month(monthStart.format(DateTimeFormatter.ofPattern("yyyy-MM")))
+                .days(days)
+                .build();
+    }
+
     @Transactional
     public ScheduleResponse createSchedule(ScheduleCreateRequest request, Long userId) {
         User owner = userRepository.findById(userId)
@@ -91,6 +136,42 @@ public class ScheduleService {
         return toScheduleResponse(scheduleRepository.save(schedule));
     }
 
+    @Transactional
+    public ScheduleResponse updateSchedule(Long scheduleId, ScheduleCreateRequest request, Long userId) {
+        Schedule schedule = scheduleRepository.findById(scheduleId)
+                .orElseThrow(() -> new EntityNotFoundException("일정을 찾을 수 없습니다."));
+        validateScheduleOwner(schedule, userId);
+
+        LocalDate startDate = parseDateOrThrow(request.getStartDate(), "시작일 형식이 올바르지 않습니다.");
+        LocalDate endDate = parseDateOrThrow(request.getEndDate(), "종료일 형식이 올바르지 않습니다.");
+
+        if (endDate.isBefore(startDate)) {
+            throw new IllegalArgumentException("종료일이 시작일보다 빠를 수 없습니다.");
+        }
+
+        List<String> participants = sanitizeParticipants(request.getParticipant());
+        schedule.update(
+                request.getTitle().trim(),
+                startDate,
+                endDate,
+                participants,
+                StringUtils.hasText(request.getMemo()) ? request.getMemo().trim() : null,
+                StringUtils.hasText(request.getPlace()) ? request.getPlace().trim() : null
+        );
+
+        return toScheduleResponse(schedule);
+    }
+
+    @Transactional
+    public void deleteSchedule(Long scheduleId, Long userId) {
+        Schedule schedule = scheduleRepository.findById(scheduleId)
+                .orElseThrow(() -> new EntityNotFoundException("일정을 찾을 수 없습니다."));
+        validateScheduleOwner(schedule, userId);
+        scheduleCommentRepository.deleteByScheduleId(scheduleId);
+        scheduleLikeRepository.deleteByScheduleId(scheduleId);
+        scheduleRepository.delete(schedule);
+    }
+
     @Transactional(readOnly = true)
     public List<ScheduleCommentResponse> getComments(Long scheduleId) {
         validateSchedule(scheduleId);
@@ -111,6 +192,27 @@ public class ScheduleService {
                 .build();
 
         return toCommentResponse(scheduleCommentRepository.save(comment));
+    }
+
+    @Transactional
+    public ScheduleCommentResponse updateComment(Long scheduleId, Long commentId, ScheduleCommentUpdateRequest request) {
+        ScheduleComment comment = scheduleCommentRepository.findByIdAndScheduleId(commentId, scheduleId)
+                .orElseThrow(() -> new EntityNotFoundException("댓글을 찾을 수 없습니다."));
+        validateCommentAuthor(comment, request.getAuthor());
+
+        comment.updateContent(request.getContent().trim());
+        return toCommentResponse(comment);
+    }
+
+    @Transactional
+    public void deleteComment(Long scheduleId, Long commentId, String author) {
+        if (!StringUtils.hasText(author)) {
+            throw new IllegalArgumentException("작성자를 확인할 수 없습니다.");
+        }
+        ScheduleComment comment = scheduleCommentRepository.findByIdAndScheduleId(commentId, scheduleId)
+                .orElseThrow(() -> new EntityNotFoundException("댓글을 찾을 수 없습니다."));
+        validateCommentAuthor(comment, author);
+        scheduleCommentRepository.delete(comment);
     }
 
     @Transactional(readOnly = true)
@@ -154,6 +256,19 @@ public class ScheduleService {
         }
     }
 
+    private void validateScheduleOwner(Schedule schedule, Long userId) {
+        if (schedule.getOwner() == null || !schedule.getOwner().getId().equals(userId)) {
+            throw new AccessDeniedException("일정을 수정/삭제할 권한이 없습니다.");
+        }
+    }
+
+    private void validateCommentAuthor(ScheduleComment comment, String author) {
+        String trimmed = author == null ? "" : author.trim();
+        if (!StringUtils.hasText(trimmed) || !comment.getAuthor().equals(trimmed)) {
+            throw new AccessDeniedException("댓글을 수정/삭제할 권한이 없습니다.");
+        }
+    }
+
     private LocalDate parseDate(String date) {
         if (!StringUtils.hasText(date)) {
             return null;
@@ -173,11 +288,40 @@ public class ScheduleService {
         }
     }
 
-    private LocalDate parseFlexibleDate(String value) {
-        if (value.contains("T")) {
-            return OffsetDateTime.parse(value).toLocalDate();
+    private LocalDate parseFlexibleDate(String raw) {
+        final String value = raw.trim().replace("\"", "");
+
+        // 1) yyyy-MM-dd → LocalDate
+        try {
+            return LocalDate.parse(value, DateTimeFormatter.ISO_LOCAL_DATE);
+        } catch (DateTimeParseException ignore) {}
+
+        // 2) yyyy-MM-ddTHH:mm[:ss] → LocalDateTime
+        try {
+            return LocalDateTime.parse(value, DateTimeFormatter.ISO_LOCAL_DATE_TIME).toLocalDate();
+        } catch (DateTimeParseException ignore) {}
+
+        // 3) yyyy-MM-ddTHH:mm[:ss]Z 또는 +09:00 같은 오프셋 포함 → OffsetDateTime
+        try {
+            return OffsetDateTime.parse(value, DateTimeFormatter.ISO_OFFSET_DATE_TIME).toLocalDate();
+        } catch (DateTimeParseException ignore) {}
+
+        // 4)  ISO_INSTANT 같은 경우 (예: 2025-11-14T00:00:00Z)
+        try {
+            return Instant.parse(value).atZone(ZoneId.systemDefault()).toLocalDate();
+        } catch (DateTimeParseException ignore) {}
+
+        // 모두 실패 시
+        throw new DateTimeParseException("Unsupported date format", value, 0);
+    }
+
+    private LocalDate resolveMonthStart(String month) {
+        if (!StringUtils.hasText(month)) {
+            LocalDate now = LocalDate.now();
+            return LocalDate.of(now.getYear(), now.getMonth(), 1);
         }
-        return LocalDate.parse(value, DATE_FORMATTER);
+        YearMonth yearMonth = YearMonth.parse(month, DateTimeFormatter.ofPattern("yyyy-MM"));
+        return yearMonth.atDay(1);
     }
 
     private List<String> sanitizeParticipants(List<String> participant) {
@@ -206,6 +350,8 @@ public class ScheduleService {
                 .place(schedule.getPlace())
                 .x(null)
                 .y(null)
+                .ownerId(schedule.getOwner() != null ? schedule.getOwner().getId() : null)
+                .ownerName(schedule.getOwner() != null ? schedule.getOwner().getName() : null)
                 .build();
     }
 

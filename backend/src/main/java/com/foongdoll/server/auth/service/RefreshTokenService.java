@@ -7,6 +7,7 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 @Service
 @RequiredArgsConstructor
@@ -19,8 +20,12 @@ public class RefreshTokenService {
 
     @Transactional
     public String issueToken(User user) {
-        refreshTokenRepository.deleteByUser(user);
-        RefreshToken refreshToken = RefreshToken.create(user, refreshTokenExpirationMs);
+        RefreshToken refreshToken = refreshTokenRepository.findByUser(user)
+                .map(existing -> {
+                    existing.renew(refreshTokenExpirationMs);
+                    return existing;
+                })
+                .orElseGet(() -> RefreshToken.create(user, refreshTokenExpirationMs));
         return refreshTokenRepository.save(refreshToken).getToken();
     }
 
@@ -35,5 +40,13 @@ public class RefreshTokenService {
         }
 
         return refreshToken.getUser();
+    }
+
+    @Transactional
+    public void revokeToken(String token) {
+        if (!StringUtils.hasText(token)) {
+            return;
+        }
+        refreshTokenRepository.deleteByToken(token);
     }
 }
