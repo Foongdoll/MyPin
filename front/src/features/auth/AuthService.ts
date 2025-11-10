@@ -1,18 +1,22 @@
 import api from "../../shared/lib/axios";
 import type { ApiResponse } from "../../shared/lib/axios/types";
-import type { JoinPayload, JoinResponse, LoginResponse } from "../../shared/types/AuthType";
-
+import type { JoinPayload, LoginResponse } from "../../shared/types/AuthType";
 
 export async function join(payload: JoinPayload) {
-  // 서버가 반환하는 스펙에 맞춰 필드명 조정
-  const { data } = await api.post<JoinResponse>("/auth/join", payload);
-  return data;
+  const { data } = await api.post<ApiResponse<LoginResponse>>("/auth/join", payload);
+  if (!data.success || !data.data) {
+    throw new Error(data.message ?? "회원가입에 실패했습니다.");
+  }
+  return data.data;
 }
 
 export const login = async (userId: string, userPw: string) => {
-    const res = await api.post<ApiResponse<LoginResponse>>("/auth/login", {
-        userId,
-        userPw,
-    });
-    return res.data.data;
+  const res = await api.post<ApiResponse<LoginResponse>>("/auth/login", {
+    userId,
+    userPw,
+  });
+  if (!res.data.success || !res.data.data) {
+    throw new Error(res.data.message ?? "로그인에 실패했습니다.");
+  }
+  return res.data.data;
 };

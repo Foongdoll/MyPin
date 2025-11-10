@@ -5,11 +5,12 @@ export type JoinPayload = {
   email?: string;
 };
 
-export type JoinResponse = {
-  accessToken?: string;
-  refreshToken?: string;
-  user?: { uuid: number; name: string };
+export type User = { uuid: number; name: string };
+
+export type LoginResponse = {
+  accessToken: string;
+  refreshToken: string;
+  user: User;
 };
 
-export type LoginResponse = { accessToken: string, refreshToken: string, user : User };
-export type User = { uuid: number; name: string } | null;
+export type JoinResponse = LoginResponse;

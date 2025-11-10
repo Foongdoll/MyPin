@@ -1,44 +1,53 @@
 import { useState } from "react";
-import { useSessionStore } from "../../state/session.store"; // 이미 있는 세션 스토어와 연동 예시
 import { useNavigate } from "react-router-dom";
 import { login } from "./AuthService";
+import { useSessionStore } from "../../state/session.store";
+import type { ApiResponse } from "../../shared/lib/axios/types";
+import type { LoginResponse } from "../../shared/types/AuthType";
+import axios from "axios";
 
 const useLogin = () => {
-    const [id, setId] = useState("");
-    const [pw, setPw] = useState("");
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState("");
-    const navigate = useNavigate();
-    const { setSession } = useSessionStore(); // 실제 세션 처리 훅 예시
+  const [id, setId] = useState("");
+  const [pw, setPw] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const navigate = useNavigate();
+  const { setSession } = useSessionStore();
 
-    const handleLogin = async () => {
-        if (!id.trim() || !pw.trim()) {
-            setError("아이디와 비밀번호를 입력해주세요.");
-            return;
-        }
-        setError("");
-        setLoading(true);
-        try {
-            
-            // const r = await login(id, pw);
-            // if(r) setSession(r?.accessToken, r?.refreshToken, r?.user)
-            navigate("/home");
-        } catch (e: any) {
-            setError("로그인 실패: 아이디 또는 비밀번호를 확인하세요.");
-        } finally {
-            setLoading(false);
-        }
-    };
+  const handleLogin = async () => {
+    if (!id.trim() || !pw.trim()) {
+      setError("아이디와 비밀번호를 입력해 주세요.");
+      return;
+    }
 
-    return {
-        id,
-        pw,
-        setId,
-        setPw,
-        handleLogin,
-        loading,
-        error,
-    };
+    setLoading(true);
+    setError("");
+    try {
+      const response = await login(id.trim(), pw.trim());
+      setSession(response.accessToken, response.refreshToken ?? null, response.user ?? null);
+      navigate("/home", { replace: true });
+    } catch (err) {
+      let message = "로그인에 실패했습니다. 아이디 또는 비밀번호를 확인해 주세요.";
+      if (axios.isAxiosError<ApiResponse<LoginResponse>>(err)) {
+        message = err.response?.data?.message ?? message;
+      } else if (err instanceof Error) {
+        message = err.message || message;
+      }
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return {
+    id,
+    pw,
+    setId,
+    setPw,
+    handleLogin,
+    loading,
+    error,
+  };
 };
 
 export default useLogin;

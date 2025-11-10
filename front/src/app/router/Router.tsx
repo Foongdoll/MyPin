@@ -1,14 +1,15 @@
-import { BrowserRouter, Routes, Route, Outlet, Navigate } from 'react-router-dom'
-import Home from '../../pages/home/Home'
-import Login from '../../pages/auth/Login'
-import { useSessionStore } from '../../state/session.store'
-import Header from '../layout/Header'
-import Sidebar from '../layout/Sidebar'
-import Join from '../../pages/auth/Join'
-import Schedule from '../../pages/schedule/Schedule'
-import Notes from '../../pages/notes/Notes'
-import Ledger from '../../pages/ledger/Ledger'
-import Setting from '../../pages/setting/Setting'
+import { BrowserRouter, Routes, Route, Outlet, Navigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import Home from "../../pages/home/Home";
+import Login from "../../pages/auth/Login";
+import Header from "../layout/Header";
+import Sidebar from "../layout/Sidebar";
+import Join from "../../pages/auth/Join";
+import Schedule from "../../pages/schedule/Schedule";
+import Notes from "../../pages/notes/Notes";
+import Ledger from "../../pages/ledger/Ledger";
+import Setting from "../../pages/setting/Setting";
+import { useSessionStore } from "../../state/session.store";
 
 const Layout = () => (
   <div className="flex flex-col min-h-screen bg-gray-50 text-gray-800">
@@ -22,21 +23,35 @@ const Layout = () => (
   </div>
 );
 
-// 퍼블리싱 하는 동안 전부 다닐 수 있도록 
-const PublicOnly = () => {
-  return <Outlet />;
-  // const { isAuthenticated } = useSessionStore()
-  // return isAuthenticated ? <Navigate to="/home" replace /> : <Outlet />
-}
+const useAuthStatus = () => {
+  const isAuthenticated = useSessionStore((state) => Boolean(state.accessToken && state.user));
+  const [hydrated, setHydrated] = useState(() => useSessionStore.persist.hasHydrated?.() ?? false);
 
+  useEffect(() => {
+    if (useSessionStore.persist.hasHydrated?.()) {
+      setHydrated(true);
+    }
+    const unsub = useSessionStore.persist.onFinishHydration?.(() => setHydrated(true));
+    return () => {
+      unsub?.();
+    };
+  }, []);
+
+  return { isAuthenticated, hydrated };
+};
+
+const PublicOnly = () => {
+  const { isAuthenticated, hydrated } = useAuthStatus();
+  if (!hydrated) return null;
+  return isAuthenticated ? <Navigate to="/home" replace /> : <Outlet />;
+};
 
 const ProtectedLayout = () => {
-  // const { isAuthenticated } = useSessionStore()
-  // return isAuthenticated ? <Layout /> : <Navigate to="/" replace />
-  return <Layout />
-}
+  const { isAuthenticated, hydrated } = useAuthStatus();
+  if (!hydrated) return null;
+  return isAuthenticated ? <Layout /> : <Navigate to="/login" replace />;
+};
 
-/** ----- 라우터 ----- */
 const Router = () => {
   return (
     <BrowserRouter>
@@ -58,7 +73,7 @@ const Router = () => {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
-  )
-}
+  );
+};
 
-export default Router
+export default Router;
