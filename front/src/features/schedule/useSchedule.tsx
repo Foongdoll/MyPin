@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ScheduleService from "./ScheduleService";
 import type {
   Schedule,
@@ -10,8 +10,18 @@ import { useSessionStore } from "../../state/session.store";
 
 const DEFAULT_PAGE_SIZE = 5;
 
+const twoDigit = (value: number) => String(value).padStart(2, "0");
 const toISODateLocal = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  `${d.getFullYear()}-${twoDigit(d.getMonth() + 1)}-${twoDigit(d.getDate())}`;
+const toLocalDateTimeString = (d: Date) =>
+  `${toISODateLocal(d)}T${twoDigit(d.getHours())}:${twoDigit(d.getMinutes())}:${twoDigit(d.getSeconds())}`;
+const toDateOnly = (value: string) => {
+  const [year, month, day] = value.split("-").map(Number);
+  if ([year, month, day].some((segment) => Number.isNaN(segment))) {
+    return new Date();
+  }
+  return new Date(year, month - 1, day);
+};
 
 const useSchedule = () => {
   const [date, setDate] = useState<Date | null>(new Date());
@@ -21,17 +31,18 @@ const useSchedule = () => {
   const [participant, setParticipant] = useState<string[]>([]);
   const [memo, setMemo] = useState("");
   const [place, setPlace] = useState("");
-  const sessionUserName = useSessionStore((state) => state.user?.name ?? "익명");
+  const sessionUserName = useSessionStore((state) => state.user?.name ?? "?占쎈챸");
 
   const [isFormView, setIsFormView] = useState(false);
 
   const [tabs, setTabs] = useState<TabsType[]>([
-    { label: "진행중인 일정", value: "list", isActive: true },
+    { label: "다가오는 일정", value: "list", isActive: true },
     { label: "일정 등록", value: "create", isActive: false },
   ]);
 
   const [scheduleList, setScheduleList] = useState<Schedule[]>([]);
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null);
+  const [editingScheduleId, setEditingScheduleId] = useState<number | null>(null);
 
   const [scheduleComments, setScheduleComments] = useState<Record<number, ScheduleComment[]>>({});
   const [scheduleReactions, setScheduleReactions] = useState<Record<number, ScheduleReactionState>>({});
@@ -45,6 +56,7 @@ const useSchedule = () => {
 
   const [isLoadingSchedules, setIsLoadingSchedules] = useState(false);
   const [isCreatingSchedule, setIsCreatingSchedule] = useState(false);
+  const [isDeletingSchedule, setIsDeletingSchedule] = useState(false);
   const [isLoadingComments, setIsLoadingComments] = useState(false);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [isMutatingLike, setIsMutatingLike] = useState(false);
@@ -58,6 +70,16 @@ const useSchedule = () => {
   const refreshSchedules = useCallback(() => {
     setReloadToken((token) => token + 1);
   }, []);
+
+  const resetFormFields = useCallback(() => {
+    setTitle("");
+    setParticipant([]);
+    setMemo("");
+    setPlace("");
+    setStartDate(date ?? new Date());
+    setEndDate(date ?? new Date());
+    setEditingScheduleId(null);
+  }, [date]);
 
   const startDateKey = useMemo(() => toISODateLocal(startDate), [startDate]);
   const startDateKeyRef = useRef(startDateKey);
@@ -103,7 +125,7 @@ const useSchedule = () => {
       } catch (error) {
         if (cancelled) return;
         console.error(error);
-        setApiError(error instanceof Error ? error.message : "일정을 불러오지 못했습니다.");
+        setApiError(error instanceof Error ? error.message : "일정 조회중 에러가 발생했습니다.");
       } finally {
         if (!cancelled) {
           setIsLoadingSchedules(false);
@@ -135,7 +157,7 @@ const useSchedule = () => {
     }
 
     setSelectedSchedule(scheduleList[0]);
-  }, [scheduleList, selectedSchedule?.no]);
+  }, [scheduleList, selectedSchedule]);
 
   useEffect(() => {
     setCommentDraft("");
@@ -183,7 +205,7 @@ const useSchedule = () => {
     return () => {
       cancelled = true;
     };
-  }, [selectedSchedule?.no]);
+  }, [selectedSchedule?.no, selectedSchedule]);
 
   const handleTabs = useCallback((tab: TabsType) => {
     setTabs((prev) =>
@@ -209,7 +231,7 @@ const useSchedule = () => {
       }
     } catch (error) {
       console.error(error);
-      alert("좋아요 처리 중 오류가 발생했습니다.");
+      alert("좋아요 처리 중 에러가 발생하였습니다.");
     } finally {
       setIsMutatingLike(false);
     }
@@ -238,7 +260,7 @@ const useSchedule = () => {
         setCommentDraft("");
       } catch (error) {
         console.error(error);
-        alert("댓글 등록 중 오류가 발생했습니다.");
+        alert("댓글 추가 중 에러가 발생하였습니다.");
       } finally {
         setIsSubmittingComment(false);
       }
@@ -246,56 +268,166 @@ const useSchedule = () => {
     []
   );
 
+  const beginEditingSchedule = useCallback(
+    (schedule: Schedule | null) => {
+      if (!schedule) return;
+      setEditingScheduleId(schedule.no);
+      setTitle(schedule.title);
+      setParticipant([...(schedule.participant ?? [])]);
+      setMemo(schedule.memo ?? "");
+      setPlace(schedule.place ?? "");
+      setStartDate(toDateOnly(schedule.startDate));
+      setEndDate(toDateOnly(schedule.endDate));
+      setTabs((prev) => prev.map((tab) => ({ ...tab, isActive: tab.value === "create" })));
+      setIsFormView(true);
+    },
+    [setIsFormView, setTabs]
+  );
+
+  const cancelEditing = useCallback(() => {
+    resetFormFields();
+    setIsFormView(false);
+  }, [resetFormFields, setIsFormView]);
+
   const createSchedule = useCallback(async () => {
     if (!title.trim()) {
-      alert("제목을 입력해 주세요.");
+      alert("제목을 입력해주세요.");
       return;
     }
     if (!startDate || !endDate) {
-      alert("시작일과 종료일을 선택해 주세요.");
+      alert("시작일과 종료일을 골라주세요.");
       return;
     }
     if (endDate.getTime() < startDate.getTime()) {
-      alert("종료일이 시작일보다 빠를 수 없습니다.");
+      alert("시작일보다 종료일이 더 빠를 수 없습니다.");
       return;
     }
 
     const sanitizedParticipants = participant.map((name) => name.trim()).filter(Boolean);
 
     setIsCreatingSchedule(true);
-    try {
-      const created = await ScheduleService.createSchedule({
+    try {            
+      const payload = {
         title: title.trim(),
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
+        startDate: toLocalDateTimeString(startDate),
+        endDate: toLocalDateTimeString(endDate),
         participant: sanitizedParticipants,
         memo: memo.trim() || undefined,
         place: place.trim() || undefined,
-      });
+      };
 
-      if (created) {
-        setSelectedSchedule(created);
+      const saved = editingScheduleId
+        ? await ScheduleService.updateSchedule(editingScheduleId, payload)
+        : await ScheduleService.createSchedule(payload);
+
+      if (saved) {
+        setScheduleList((prev) =>
+          editingScheduleId ? prev.map((item) => (item.no === saved.no ? saved : item)) : prev
+        );
+        setSelectedSchedule(saved);
       }
 
-      setTitle("");
-      setParticipant([]);
-      setMemo("");
-      setPlace("");
-      setStartDate(date ?? new Date());
-      setEndDate(date ?? new Date());
-
+      resetFormFields();
       setIsFormView(false);
       setTabs((prev) => prev.map((tab) => ({ ...tab, isActive: tab.value === "list" })));
       setPage(1);
       refreshSchedules();
     } catch (error) {
       console.error(error);
-      alert("일정 등록 중 오류가 발생했습니다.");
+      alert(editingScheduleId ? "일정 수정에 실패하였습니다." : "일정 수정에 실패하였습니다.");
     } finally {
       setIsCreatingSchedule(false);
     }
-  }, [title, startDate, endDate, participant, memo, place, date, refreshSchedules]);
+  }, [
+    title,
+    startDate,
+    endDate,
+    participant,
+    memo,
+    place,
+    editingScheduleId,
+    resetFormFields,
+    setIsFormView,
+    setTabs,
+    setPage,
+    refreshSchedules,
+  ]);
 
+  const deleteSchedule = useCallback(
+    async (scheduleNo: number | null | undefined) => {
+      if (!scheduleNo) return;
+      setIsDeletingSchedule(true);
+      try {
+        await ScheduleService.deleteSchedule(scheduleNo);
+        setScheduleList((prev) => prev.filter((item) => item.no !== scheduleNo));
+        if (selectedSchedule?.no === scheduleNo) {
+          setSelectedSchedule(null);
+        }
+        resetFormFields();
+        refreshSchedules();
+      } catch (error) {
+        console.error(error);
+        alert("일정 삭제 중 오류가 발생했습니다.");
+      } finally {
+        setIsDeletingSchedule(false);
+      }
+    },
+    [selectedSchedule?.no, refreshSchedules, resetFormFields]
+  );
+
+  const updateComment = useCallback(
+    async (
+      scheduleNo: number | null | undefined,
+      commentId: string | number,
+      content: string,
+      author: string
+    ) => {
+      if (!scheduleNo || !commentId) return;
+      const trimmedContent = content.trim();
+      const trimmedAuthor = (author ?? "").trim();
+      if (!trimmedContent || !trimmedAuthor) return;
+
+      try {
+        const updated = await ScheduleService.updateScheduleComment(scheduleNo, commentId, {
+          author: trimmedAuthor,
+          content: trimmedContent,
+        });
+
+        if (updated) {
+          setScheduleComments((prev) => ({
+            ...prev,
+            [scheduleNo]: (prev[scheduleNo] ?? []).map((comment) =>
+              comment.id === updated.id ? updated : comment
+            ),
+          }));
+        }
+      } catch (error) {
+        console.error(error);
+        alert("댓글 수정 중 오류가 발생했습니다.");
+      }
+    },
+    []
+  );
+
+  const deleteComment = useCallback(
+    async (scheduleNo: number | null | undefined, commentId: string | number, author: string) => {
+      if (!scheduleNo || !commentId) return;
+      const trimmedAuthor = (author ?? "").trim();
+      if (!trimmedAuthor) return;
+
+      try {
+        await ScheduleService.deleteScheduleComment(scheduleNo, commentId, trimmedAuthor);
+        setScheduleComments((prev) => ({
+          ...prev,
+          [scheduleNo]: (prev[scheduleNo] ?? []).filter((comment) => comment.id !== String(commentId)),
+        }));
+      } catch (error) {
+        console.error(error);
+        alert("댓글 삭제 중 오류가 발생했습니다.");
+      }
+    },
+    []
+  );
   const selectedScheduleComments = useMemo(
     () => (selectedSchedule?.no ? scheduleComments[selectedSchedule.no] ?? [] : []),
     [scheduleComments, selectedSchedule]
@@ -328,6 +460,9 @@ const useSchedule = () => {
     setTabs,
     selectedSchedule,
     setSelectedSchedule,
+    editingScheduleId,
+    beginEditingSchedule,
+    cancelEditing,
     selectedScheduleComments,
     selectedScheduleReactions,
     handleTabs,
@@ -343,6 +478,7 @@ const useSchedule = () => {
     commentAuthor,
     setCommentAuthor,
     createSchedule,
+    deleteSchedule,
     paged,
     startIdx,
     page,
@@ -353,12 +489,18 @@ const useSchedule = () => {
     totalCount,
     isLoadingSchedules,
     isCreatingSchedule,
+    isDeletingSchedule,
     isLoadingComments,
     isSubmittingComment,
     isMutatingLike,
     apiError,
     refreshSchedules,
+    updateComment,
+    deleteComment,
   };
 };
 
 export default useSchedule;
+
+
+

@@ -6,7 +6,6 @@ import { useState } from "react";
 
 const ScheduleCreateForm = ({
   isFormView,
-  setIsFormView,
   date,
   startDate,
   setStartDate,
@@ -22,8 +21,27 @@ const ScheduleCreateForm = ({
   setPlace,
   createSchedule,
   isCreatingSchedule,
+  handleTabs,
+  isEditingSchedule,
+  cancelEditing
 }: ScheduleCreateFormProp) => {
   const [u, setU] = useState<string>("");
+  const handleClose = () => {
+    cancelEditing();
+    handleTabs({ label: "진행중인 일정", value: "list", isActive: true });
+  };
+
+  const [isFocus, setIsFocus] = useState<boolean>(false);
+  const handleEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
+
+    console.log(startDate);
+    console.log(endDate);
+
+    if (e.key === "Enter") {
+      if (u.trim()) setParticipant((prev) => [...prev, u.trim()]);
+      setU("");
+    }
+  };
 
   return createPortal(
     <AnimatePresence>
@@ -33,9 +51,7 @@ const ScheduleCreateForm = ({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          onClick={() => {
-            setIsFormView(false);
-          }}
+          onClick={handleClose}
           role="dialog"
           aria-modal="true"
         >
@@ -50,7 +66,7 @@ const ScheduleCreateForm = ({
           >
             {/* 닫기 아이콘 */}
             <button
-              onClick={() => setIsFormView(false)}
+              onClick={handleClose}
               aria-label="닫기"
               className="absolute top-3 right-3 inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white hover:bg-slate-100 text-slate-500 hover:text-slate-700"
             >
@@ -139,6 +155,11 @@ const ScheduleCreateForm = ({
                     className="flex-1 rounded-lg border border-slate-200 p-3 focus:outline-none focus:ring-2 focus:ring-indigo-300"
                     placeholder="참여자 이름 또는 이메일 입력"
                     onChange={(e) => setU(e.target.value)}
+                    onFocus={() => { setIsFocus(true) }}
+                    onBlur={() => { setIsFocus(false) }}
+                    onKeyDown={(e) => {
+                      isFocus && handleEnter(e)
+                    }}
                     value={u}
                   />
                   <button
@@ -184,16 +205,27 @@ const ScheduleCreateForm = ({
                 />
               </div>
 
-              <button
-                type="button"
-                className={`rounded-xl px-6 py-3 font-semibold text-white shadow bg-gradient-to-r from-indigo-500 to-violet-600 ${
-                  isCreatingSchedule ? "opacity-70 cursor-not-allowed" : "hover:opacity-95"
-                }`}
-                onClick={createSchedule}
-                disabled={isCreatingSchedule}
-              >
-                {isCreatingSchedule ? "일정 등록 중..." : "일정 등록"}
-              </button>
+              <div className="flex flex-wrap gap-3">
+                {isEditingSchedule && (
+                  <button
+                    type="button"
+                    className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                    onClick={cancelEditing}
+                    disabled={isCreatingSchedule}
+                  >
+                    수정 취소
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className={`rounded-xl px-6 py-3 font-semibold text-white shadow bg-gradient-to-r from-indigo-500 to-violet-600 ${isCreatingSchedule ? "opacity-70 cursor-not-allowed" : "hover:opacity-95"
+                    }`}
+                  onClick={createSchedule}
+                  disabled={isCreatingSchedule}
+                >
+                  {isCreatingSchedule ? (isEditingSchedule ? "수정 중..." : "등록 중...") : isEditingSchedule ? "일정 수정" : "일정 등록"}
+                </button>
+              </div>
             </div>
           </motion.div>
         </motion.div>

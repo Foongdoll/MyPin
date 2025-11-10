@@ -12,3 +12,23 @@ export type Note = {
   excerpt: string;
   tags?: string[];
 };
+
+export type NoteDetail = {
+  id: string;
+  title: string;
+  content: string; // markdown
+  categoryId: string;
+  categoryPath: string[];
+  tags: string[];
+  likes: number;
+  liked: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type Comment = {
+  id: string;
+  author: string;
+  content: string;
+  createdAt: string;
+};

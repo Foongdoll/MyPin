@@ -1,7 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Folder, Note } from "../../shared/types/NoteType";
-import { TreeNode } from "./Tree";
+import { TreeNode } from "../../features/note/Tree";
 import useNote from "../../features/note/useNote";
+import NoteDetail from "./NoteDetail";
+import NoteEditor from "./NoteEditor";
+import { Plus } from "lucide-react";
 
 
 const cx = (...cls: (string | false | undefined)[]) => cls.filter(Boolean).join(" ");
@@ -32,7 +35,17 @@ const Notes = () => {
     sortKey,
     start,
     tagFilter,
+    afterSaved,
+    closeDetail,
+    detailId,
+    editorOpen,
+    openDetail,
+    openEdit,
+    closeEditor,
+    editNote,
     totalPages } = useNote();
+
+
 
   return (
     <div className="flex h-full w-full">
@@ -48,7 +61,7 @@ const Notes = () => {
               <TreeNode
                 node={f}
                 activePath={activeCategory}
-                onSelect={(path) => {
+                onSelect={(path) => {                  
                   setActiveCategory(path);
                   setPage(1);
                 }}
@@ -158,7 +171,6 @@ const Notes = () => {
           </div>
         </div>
 
-        {/* 리스트 */}
         <section className="px-4 pb-4 pt-4">
           {pageData.length === 0 ? (
             <div className="flex h-48 items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white">
@@ -167,46 +179,24 @@ const Notes = () => {
           ) : (
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
               {pageData.map((n) => (
-                <article
-                  key={n.id}
-                  className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md"
-                >
+                <article key={n.id} className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md">
                   <div className="flex items-start justify-between gap-3">
-                    <h3 className="line-clamp-2 text-base font-semibold text-slate-900">
-                      {n.title}
-                    </h3>
+                    <h3 className="line-clamp-2 text-base font-semibold text-slate-900">{n.title}</h3>
                     <span className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-600">
                       {n.date}
                     </span>
                   </div>
-
-                  <p className="mt-2 line-clamp-3 text-sm text-slate-600">
-                    {n.excerpt}
-                  </p>
-
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {n.tags?.map((t) => (
-                      <span
-                        key={t}
-                        className="rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700"
-                      >
-                        #{t}
-                      </span>
-                    ))}
-                  </div>
-
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-white/90 to-transparent"></div>
-
+                  <p className="mt-2 line-clamp-3 text-sm text-slate-600">{n.excerpt}</p>
                   <div className="mt-3 flex items-center justify-between">
-                    <div className="text-xs text-slate-500">
-                      {n.categoryPath.join(" / ")}
+                    <div className="text-xs text-slate-500">{n.categoryPath.join(" / ")}</div>
+                    <div className="flex items-center gap-2">
+                      <button className="rounded-lg px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50" onClick={() => openDetail(n.id)}>
+                        열기
+                      </button>
+                      <button className="rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-50" onClick={() => openEdit({ id: n.id, title: n.title, content: "", categoryId: "", tags: [] })}>
+                        수정
+                      </button>
                     </div>
-                    <button
-                      className="rounded-lg px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
-                      onClick={() => alert("열기(디자인용)")}
-                    >
-                      열기
-                    </button>
                   </div>
                 </article>
               ))}
@@ -237,6 +227,23 @@ const Notes = () => {
             </button>
           </div>
         </section>
+
+        {/* 모달들 */}
+        {detailId && (
+          <NoteDetail
+            noteId={detailId}
+            onClose={closeDetail}
+            onEdit={(note) => { closeDetail(); openEdit(note); }}
+          />
+        )}
+
+        <NoteEditor
+          open={editorOpen}
+          onClose={closeEditor}
+          initial={editNote ?? undefined}
+          onSaved={afterSaved}
+        />
+
       </main>
     </div>
   );

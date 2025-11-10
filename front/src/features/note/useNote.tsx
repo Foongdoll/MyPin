@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Folder, Note } from "../../shared/types/NoteType";
+import { NoteService } from "./NoteService";
 const FOLDERS: Folder[] = [
     {
         id: "dev",
@@ -92,6 +93,22 @@ const useNote = () => {
     const [page, setPage] = useState(1);
     const pageSize = 6;
 
+    const [detailId, setDetailId] = useState<string | null>(null);
+    const [editorOpen, setEditorOpen] = useState(false);
+    const [editNote, setEditNote] = useState<any | null>(null);
+
+    const openDetail = (id: string) => setDetailId(id);
+    const closeDetail = () => setDetailId(null);
+
+    const openCreate = () => { setEditNote(null); setEditorOpen(true); };
+    const openEdit = (note: any) => { setEditNote(note); setEditorOpen(true); };
+    const closeEditor = () => setEditorOpen(false);
+
+    const afterSaved = (id: string) => {
+        // 저장 후 상세로 바로 이동하거나 목록 갱신 로직 추가 가능
+        setDetailId(id);
+    };
+
     // 태그 목록(디자인용)
     const allTags = useMemo(() => {
         const uniq = new Set<string>();
@@ -132,6 +149,27 @@ const useNote = () => {
         activeCategory.length > 0 ? activeCategory.join(" / ") : "전체";
 
 
+
+
+    // 카테고리, 노트 조회
+    useEffect(() => {
+
+        const fetchNote = () => {
+
+            // const notes = await NoteService.list()
+        }
+
+        const fetchCategory = () => {
+
+        }
+
+        fetchNote();
+        fetchCategory();
+
+    }, [activeCategory])
+
+
+    
     return {
         FOLDERS, NOTES,
         // state
@@ -160,6 +198,9 @@ const useNote = () => {
         setQueryAndReset: (v: string) => { setQuery(v); setPage(1); },
         setTagFilterAndReset: (v: string) => { setTagFilter(v); setPage(1); },
         setSortAndReset: (v: "recent" | "title") => { setSortKey(v); setPage(1); },
+
+        detailId, editorOpen, closeDetail,
+        openDetail, openEdit, afterSaved, closeEditor, editNote
     };
 }
 export default useNote

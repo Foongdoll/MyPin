@@ -1,15 +1,21 @@
-import type { FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import useSchedule from "../../features/schedule/useSchedule";
 import Calendar from "../../shared/lib/calendar/Calendar";
-
+import ScheduleService from "../../features/schedule/ScheduleService";
 import "react-datepicker/dist/react-datepicker.css";
 import "../../shared/styles/Schedule.css";
 import ScheduleCreateForm from "./ScheduleCreateForm";
+import { motion } from "framer-motion"
+import ExpandedCommentTooltip from "./CommentTooltip";
+import { useSessionStore } from "../../state/session.store";
+
+const PAGE_BLOCK_SIZE = 5;
+
+const pad = (value: number) => String(value).padStart(2, "0");
 
 const Schedule = () => {
   const {
     date,
-    setDate,
     startDate,
     setStartDate,
     endDate,
@@ -25,6 +31,9 @@ const Schedule = () => {
     tabs,
     selectedSchedule,
     setSelectedSchedule,
+    editingScheduleId,
+    beginEditingSchedule,
+    cancelEditing,
     selectedScheduleComments,
     selectedScheduleReactions,
     handleTabs,
@@ -35,8 +44,8 @@ const Schedule = () => {
     commentDraft,
     setCommentDraft,
     commentAuthor,
-    setCommentAuthor,
     createSchedule,
+    deleteSchedule,
     paged,
     startIdx,
     page,
@@ -44,20 +53,128 @@ const Schedule = () => {
     totalPages,
     isLoadingSchedules,
     isCreatingSchedule,
+    isDeletingSchedule,
     isLoadingComments,
     isSubmittingComment,
     isMutatingLike,
     apiError,
     refreshSchedules,
+    updateComment,
+    deleteComment,
   } = useSchedule();
 
-  const isCommentDisabled = !selectedSchedule || !commentDraft.trim() || isSubmittingComment;
+  const sessionUser = useSessionStore((state) => state.user);
+  const [calendarViewDate, setCalendarViewDate] = useState<Date>(startDate ?? new Date());
+  const [calendarMarkedDays, setCalendarMarkedDays] = useState<Set<string>>(new Set());
+  const [isCommentDrawerOpen, setCommentDrawerOpen] = useState(false);
+  const [commentFocusId, setCommentFocusId] = useState<string | null>(null);
+  const [commentAction, setCommentAction] = useState<{ type: "edit" | "delete"; id: string | number | null } | null>(null);
+
+  const openCommentDrawer = (commentId: string) => {
+    setCommentFocusId(commentId);
+    setCommentDrawerOpen(true);
+  };
+  const closeCommentDrawer = () => {
+    setCommentDrawerOpen(false);
+    setCommentFocusId(null);
+  };
+
+  useEffect(() => {
+    if (!startDate) return;
+    setCalendarViewDate((prev) => {
+      if (!prev) return startDate;
+      const sameMonth =
+        prev.getFullYear() === startDate.getFullYear() && prev.getMonth() === startDate.getMonth();
+      return sameMonth ? prev : startDate;
+    });
+  }, [startDate]);
+
+  useEffect(() => {
+    setCommentDrawerOpen(false);
+    setCommentFocusId(null);
+  }, [selectedSchedule?.no]);
+
+  const calendarMonthKey = useMemo(
+    () => `${calendarViewDate.getFullYear()}-${pad(calendarViewDate.getMonth() + 1)}`,
+    [calendarViewDate]
+  );
+
+  const isEditingSchedule = Boolean(editingScheduleId);
+  const isScheduleOwner = !!selectedSchedule && sessionUser?.uuid === selectedSchedule.ownerId;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchCalendarMarkers = async () => {
+      try {
+        const summary = await ScheduleService.fetchCalendarSummary(calendarMonthKey);
+        if (cancelled) return;
+        setCalendarMarkedDays(new Set(summary.days.map((day) => day.date)));
+      } catch (error) {
+        if (cancelled) return;
+        console.error(error);
+        setCalendarMarkedDays(new Set());
+      }
+    };
+
+    fetchCalendarMarkers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [calendarMonthKey]);
+
+  const paginationNumbers = useMemo(() => {
+    const safeTotalPages = Math.max(1, totalPages);
+    const blockIndex = Math.floor((page - 1) / PAGE_BLOCK_SIZE);
+    const blockStart = blockIndex * PAGE_BLOCK_SIZE + 1;
+    const blockEnd = Math.min(blockStart + PAGE_BLOCK_SIZE - 1, safeTotalPages);
+
+    return Array.from({ length: blockEnd - blockStart + 1 }, (_, idx) => blockStart + idx);
+  }, [page, totalPages]);
+
+  const normalizedCommentAuthor = commentAuthor?.trim() ?? "";
+  const isCommentDisabled =
+    !selectedSchedule || !commentDraft.trim() || !normalizedCommentAuthor || isSubmittingComment;
 
   const handleCommentSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!selectedSchedule || isSubmittingComment) return;
 
-    await addComment(selectedSchedule.no, commentAuthor, commentDraft);
+    await addComment(selectedSchedule.no, normalizedCommentAuthor, commentDraft);
+  };
+
+  const handleScheduleEdit = () => {
+    if (!selectedSchedule) return;
+    beginEditingSchedule(selectedSchedule);
+  };
+
+  const handleScheduleDelete = async () => {
+    if (!selectedSchedule) return;
+    if (!window.confirm("정말 일정을 삭제하시겠어요?")) return;
+    await deleteSchedule(selectedSchedule.no);
+    closeCommentDrawer();
+  };
+
+  const handleCommentEdit = async (commentId: string, content: string) => {
+    if (!selectedSchedule) return;
+    setCommentAction({ type: "edit", id: commentId });
+    try {
+      await updateComment(selectedSchedule.no, commentId, content, normalizedCommentAuthor);
+    } finally {
+      setCommentAction(null);
+    }
+  };
+
+  const handleCommentDelete = async (commentId: string) => {
+    if (!selectedSchedule) return;
+    if (!window.confirm("댓글을 삭제하시겠어요?")) return;
+    setCommentAction({ type: "delete", id: commentId });
+    try {
+      await deleteComment(selectedSchedule.no, commentId, normalizedCommentAuthor);
+    } finally {
+      setCommentAction(null);
+    }
   };
 
   return (
@@ -65,7 +182,15 @@ const Schedule = () => {
       <div className="flex flex-1 w-full flex-col lg:flex-row gap-5">
         {/* 왼쪽 캘린더 */}
         <div className="flex-1 rounded-xl mb-5 lg:mb-0 h-[90%]">
-          <Calendar value={startDate ?? undefined} onChange={setStartDate} weekStartsOn={0} className="h-full" />
+          <Calendar
+            value={startDate ?? undefined}
+            onChange={setStartDate}
+            weekStartsOn={0}
+            className="h-full"
+            markedDays={calendarMarkedDays}
+            viewDate={calendarViewDate}
+            onViewDateChange={setCalendarViewDate}
+          />
         </div>
 
         {/* 오른쪽 탭 + 콘텐츠 */}
@@ -77,9 +202,8 @@ const Schedule = () => {
                 {tabs.map((i) => (
                   <button
                     key={i.label}
-                    className={`px-4 py-2 text-lg md:text-xl border-b-4 border-b-blue-700 rounded-2xl ${
-                      i.isActive ? "schedule_tab_active_btn" : "schedule_tab_btn"
-                    }`}
+                    className={`px-4 py-2 text-lg md:text-xl border-b-4 border-b-blue-700 rounded-2xl ${i.isActive ? "schedule_tab_active_btn" : "schedule_tab_btn"
+                      }`}
                     onClick={() => handleTabs(i)}
                   >
                     {i.label}
@@ -128,9 +252,8 @@ const Schedule = () => {
                             return (
                               <div
                                 key={i.no ?? globalIndex}
-                                className={`flex flex-col md:flex-row items-start md:items-center gap-1 md:gap-0 border-b border-slate-200 last:border-none px-3 py-2 md:py-3 cursor-pointer ${
-                                  selectedSchedule && i.no === selectedSchedule.no ? "bg-blue-100" : ""
-                                }`}
+                                className={`flex flex-col md:flex-row items-start md:items-center gap-1 md:gap-0 border-b border-slate-200 last:border-none px-3 py-2 md:py-3 cursor-pointer ${selectedSchedule && i.no === selectedSchedule.no ? "bg-blue-100" : ""
+                                  }`}
                                 onClick={() => setSelectedSchedule(i)}
                               >
                                 <span className="w-full md:w-[10%] font-semibold md:font-normal text-blue-700">
@@ -153,53 +276,64 @@ const Schedule = () => {
                           </div>
                         )}
                       </div>
-                      </div>
+                    </div>
 
-                      {/* 간단 페이지 네비게이션 */}
-                      <div className="flex items-center justify-center gap-3 py-3">
+                    {/* 간단 페이지 네비게이션 */}
+                    <div className="flex items-center justify-center gap-2 py-4">
+                      <button
+                        className="rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        disabled={page <= 1}
+                      >
+                        이전
+                      </button>
+                      {paginationNumbers.map((pageNumber) => (
                         <button
-                          className="px-3 py-1 rounded border"
-                          onClick={() => setPage((p) => Math.max(1, p - 1))}
-                          disabled={page <= 1}
+                          key={pageNumber}
+                          className={`h-9 w-9 rounded-full border text-sm font-semibold transition ${pageNumber === page
+                            ? "border-blue-500 bg-blue-500 text-white shadow-inner"
+                            : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:text-blue-600"
+                            }`}
+                          onClick={() => setPage(pageNumber)}
+                          aria-current={pageNumber === page ? "page" : undefined}
                         >
-                          이전
+                          {pageNumber}
                         </button>
-                        <span className="text-sm">
-                          {page} / {totalPages}
-                        </span>
-                        <button
-                          className="px-3 py-1 rounded border"
-                          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                          disabled={page >= totalPages}
-                        >
-                          다음
-                        </button>
-                      </div>
-                    </div>                  
+                      ))}
+                      <button
+                        className="rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={page >= totalPages}
+                      >
+                        다음
+                      </button>
+                    </div>
+                  </div>
                 );
 
               case "create":
                 return isFormView ? (
-                  <ScheduleCreateForm
-                    isFormView={isFormView}
-                    setIsFormView={setIsFormView}
-                    date={date}
-                    startDate={startDate}
-                    setStartDate={setStartDate}
-                    endDate={endDate}
-                    setEndDate={setEndDate}
-                    title={title}
-                    setTitle={setTitle}
-                    participant={participant}
-                    setParticipant={setParticipant}
-                    memo={memo}
-                    setMemo={setMemo}
-                    place={place}
-                    setPlace={setPlace}
-                    createSchedule={createSchedule}
-                    handleTabs={handleTabs}
-                    isCreatingSchedule={isCreatingSchedule}
-                  />
+          <ScheduleCreateForm
+            isFormView={isFormView}
+            date={date}
+            startDate={startDate}
+            setStartDate={setStartDate}
+            endDate={endDate}
+            setEndDate={setEndDate}
+            title={title}
+            setTitle={setTitle}
+            participant={participant}
+            setParticipant={setParticipant}
+            memo={memo}
+            setMemo={setMemo}
+            place={place}
+            setPlace={setPlace}
+            createSchedule={createSchedule}
+            handleTabs={handleTabs}
+            isCreatingSchedule={isCreatingSchedule}
+            isEditingSchedule={isEditingSchedule}
+            cancelEditing={cancelEditing}
+          />
                 ) : (
                   <div className="flex justify-center items-center h-full">
                     <button
@@ -213,7 +347,7 @@ const Schedule = () => {
                     </button>
                   </div>
                 );
-                default:
+              default:
                 return <div>활성화된 탭이 없음(에러)</div>;
             }
           })}
@@ -233,9 +367,33 @@ const Schedule = () => {
                   <p className="mt-1 text-sm text-slate-500">
                     {selectedSchedule.startDate} ~ {selectedSchedule.endDate}
                   </p>
+                  {selectedSchedule.ownerName && (
+                    <p className="text-xs text-slate-400">작성자: {selectedSchedule.ownerName}</p>
+                  )}
                 </div>
-                <div className="rounded-full border border-blue-100 bg-white px-4 py-2 text-sm font-semibold text-blue-600 shadow-sm">
-                  좋아요 {selectedScheduleReactions.likes.toLocaleString()}
+                <div className="flex flex-col items-end gap-3">
+                  <div className="rounded-full border border-blue-100 bg-white px-4 py-2 text-sm font-semibold text-blue-600 shadow-sm">
+                    좋아요 {selectedScheduleReactions.likes.toLocaleString()}
+                  </div>
+                  {isScheduleOwner && (
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-blue-200 hover:text-blue-600 transition"
+                        onClick={handleScheduleEdit}
+                      >
+                        일정 수정
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-full border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition disabled:opacity-50"
+                        onClick={() => void handleScheduleDelete()}
+                        disabled={isDeletingSchedule}
+                      >
+                        {isDeletingSchedule ? "삭제 중..." : "삭제"}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="grid grid-cols-1 gap-4 text-sm text-slate-600 md:grid-cols-2">
@@ -266,7 +424,7 @@ const Schedule = () => {
               </div>
               <div className="rounded-3xl border border-white/70 bg-white/80 p-5 shadow-inner">
                 <p className="text-xs font-semibold uppercase text-slate-400">메모</p>
-                <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                <p className="mt-2 text-sm leading-relaxed text-slate-600 ">
                   {selectedSchedule.memo ? selectedSchedule.memo : "추가 메모가 없습니다."}
                 </p>
               </div>
@@ -294,11 +452,10 @@ const Schedule = () => {
             </div>
             <button
               type="button"
-              className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition-all ${
-                selectedScheduleReactions.isLiked
-                  ? "border-blue-200 bg-blue-50 text-blue-600"
-                  : "border-slate-200 bg-slate-50 text-slate-600"
-              } ${selectedSchedule ? "hover:-translate-y-0.5 hover:shadow" : "cursor-not-allowed opacity-50"}`}
+              className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition-all ${selectedScheduleReactions.isLiked
+                ? "border-blue-200 bg-blue-50 text-blue-600"
+                : "border-slate-200 bg-slate-50 text-slate-600"
+                } ${selectedSchedule ? "hover:-translate-y-0.5 hover:shadow" : "cursor-not-allowed opacity-50"}`}
               onClick={() => toggleLike(selectedSchedule?.no)}
               disabled={!selectedSchedule || isMutatingLike}
             >
@@ -317,20 +474,30 @@ const Schedule = () => {
                   댓글을 불러오는 중입니다...
                 </div>
               ) : selectedScheduleComments.length > 0 ? (
-                selectedScheduleComments.map((comment) => (
-                  <div
-                    key={comment.id}
-                    className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4 text-left shadow-sm"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-sm font-semibold text-slate-800">{comment.author}</span>
-                      <span className="text-xs text-slate-400">
-                        {new Date(comment.createdAt).toLocaleString()}
-                      </span>
-                    </div>
-                    <p className="mt-2 text-sm leading-relaxed text-slate-600">{comment.content}</p>
-                  </div>
-                ))
+                <div className="flex flex-col gap-3">
+                  {selectedScheduleComments.map((comment) => (
+                    <motion.button
+                      key={comment.id}
+                      type="button"
+                      onClick={() => openCommentDrawer(String(comment.id))}
+                      className="
+          rounded-2xl border border-slate-100 bg-slate-50/80 p-4 text-left shadow-sm
+          transition
+          hover:shadow-md active:scale-[0.995] focus:outline-none focus:ring-2 focus:ring-emerald-300/60
+        "          
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-sm font-semibold text-slate-800">{comment.author}</span>
+                        <span className="text-xs text-slate-400">
+                          {new Date(comment.createdAt).toLocaleString()}
+                        </span>
+                      </div>
+                      <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-slate-600">
+                        {comment.content}
+                      </p>
+                    </motion.button>
+                  ))}
+                </div>
               ) : (
                 <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-400">
                   아직 댓글이 없습니다. 첫 댓글을 남겨보세요!
@@ -345,18 +512,10 @@ const Schedule = () => {
 
           <form onSubmit={handleCommentSubmit} className="mt-4 flex flex-col gap-4 text-left">
             <div className="flex flex-col gap-1 text-sm text-slate-600">
-              <label htmlFor="commentAuthor" className="text-xs font-semibold uppercase text-slate-500">
-                작성자
-              </label>
-              <input
-                id="commentAuthor"
-                type="text"
-                className="rounded-xl border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50"
-                placeholder="이름 또는 닉네임"
-                value={commentAuthor}
-                onChange={(event) => setCommentAuthor(event.target.value)}
-                disabled={!selectedSchedule || isSubmittingComment}
-              />
+              <span className="text-xs font-semibold uppercase text-slate-500">작성자</span>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700">
+                {normalizedCommentAuthor || "로그인이 필요합니다"}
+              </div>
             </div>
             <div className="flex flex-col gap-1 text-sm text-slate-600">
               <label htmlFor="commentContent" className="text-xs font-semibold uppercase text-slate-500">
@@ -377,9 +536,8 @@ const Schedule = () => {
             </div>
             <button
               type="submit"
-              className={`rounded-2xl px-5 py-3 text-sm font-semibold text-white transition ${
-                isCommentDisabled ? "cursor-not-allowed bg-slate-300" : "bg-blue-500 hover:bg-blue-600"
-              }`}
+              className={`rounded-2xl px-5 py-3 text-sm font-semibold text-white transition ${isCommentDisabled ? "cursor-not-allowed bg-slate-300" : "bg-blue-500 hover:bg-blue-600"
+                }`}
               disabled={isCommentDisabled}
             >
               {isSubmittingComment ? "등록 중..." : "댓글 남기기"}
@@ -387,6 +545,16 @@ const Schedule = () => {
           </form>
         </div>
       </div>
+      <ExpandedCommentTooltip
+        open={isCommentDrawerOpen && selectedScheduleComments.length > 0}
+        comments={selectedScheduleComments}
+        focusedCommentId={commentFocusId ?? undefined}
+        currentUser={normalizedCommentAuthor}
+        onClose={closeCommentDrawer}
+        onEdit={handleCommentEdit}
+        onDelete={handleCommentDelete}
+        pendingAction={commentAction}
+      />
 
     </div>
   );

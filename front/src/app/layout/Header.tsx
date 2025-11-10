@@ -1,17 +1,13 @@
 import { Menu, Bell, User as UserIcon, LogOut } from "lucide-react";
 import { useUiStore } from "../../state/ui.store";
 import { useSessionStore } from "../../state/session.store";
-import { useNavigate } from "react-router-dom";
-
 
 const Header = () => {
   const { toggleSidebar } = useUiStore();
   const { user, logout } = useSessionStore();
-  const navigate = useNavigate();
 
-  const handleLogout = () => {
-    logout();
-    navigate("/login", { replace: true });
+  const handleLogout = async () => {
+    await logout({ reason: "manual" });
   };
 
   return (
@@ -25,7 +21,7 @@ const Header = () => {
 
       <div className="flex items-center gap-3">
         <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors" aria-label="알림">
-          <Bell className="w-5 h-5" />
+          <Bell className="w-5 h-5 text-blue-600 bell-shake" />
         </button>
         <div className="flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700">
           <UserIcon className="w-4 h-4" />

@@ -5,9 +5,12 @@ import type {
   ScheduleListParams,
   ScheduleListResponse,
   ScheduleCreatePayload,
+  ScheduleUpdatePayload,
   ScheduleComment,
   ScheduleCommentPayload,
+  ScheduleCommentUpdatePayload,
   ScheduleReactionState,
+  ScheduleCalendarResponse,
 } from "../../shared/types/ScheduleType";
 
 function unwrapResponse<T>(response: ApiResponse<T>, fallback?: T): T {
@@ -34,6 +37,16 @@ const ScheduleService = {
     return unwrapResponse(data);
   },
 
+  async updateSchedule(scheduleNo: number, payload: ScheduleUpdatePayload) {
+    const { data } = await api.put<ApiResponse<Schedule>>(`/schedules/${scheduleNo}`, payload);
+    return unwrapResponse(data);
+  },
+
+  async deleteSchedule(scheduleNo: number) {
+    const { data } = await api.delete<ApiResponse<void>>(`/schedules/${scheduleNo}`);
+    return unwrapResponse(data, undefined);
+  },
+
   async fetchScheduleComments(scheduleNo: number) {
     const { data } = await api.get<ApiResponse<ScheduleComment[]>>(`/schedules/${scheduleNo}/comments`);
     return unwrapResponse(data, [] as ScheduleComment[]);
@@ -44,6 +57,21 @@ const ScheduleService = {
     return unwrapResponse(data);
   },
 
+  async updateScheduleComment(scheduleNo: number, commentId: string | number, payload: ScheduleCommentUpdatePayload) {
+    const { data } = await api.put<ApiResponse<ScheduleComment>>(
+      `/schedules/${scheduleNo}/comments/${commentId}`,
+      payload
+    );
+    return unwrapResponse(data);
+  },
+
+  async deleteScheduleComment(scheduleNo: number, commentId: string | number, author: string) {
+    const { data } = await api.delete<ApiResponse<void>>(`/schedules/${scheduleNo}/comments/${commentId}`, {
+      params: { author },
+    });
+    return unwrapResponse(data, undefined);
+  },
+
   async fetchScheduleReaction(scheduleNo: number) {
     const { data } = await api.get<ApiResponse<ScheduleReactionState>>(`/schedules/${scheduleNo}/likes`);
     return unwrapResponse(data);
@@ -51,6 +79,13 @@ const ScheduleService = {
 
   async toggleScheduleLike(scheduleNo: number) {
     const { data } = await api.post<ApiResponse<ScheduleReactionState>>(`/schedules/${scheduleNo}/likes/toggle`);
+    return unwrapResponse(data);
+  },
+
+  async fetchCalendarSummary(month: string) {
+    const { data } = await api.get<ApiResponse<ScheduleCalendarResponse>>("/schedules/calendar", {
+      params: { month },
+    });
     return unwrapResponse(data);
   },
 };

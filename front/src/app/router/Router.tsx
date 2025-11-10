@@ -10,6 +10,7 @@ import Notes from "../../pages/notes/Notes";
 import Ledger from "../../pages/ledger/Ledger";
 import Setting from "../../pages/setting/Setting";
 import { useSessionStore } from "../../state/session.store";
+import { HttpProvider } from "../provider/HttpProvider";
 
 const Layout = () => (
   <div className="flex flex-col min-h-screen bg-gray-50 text-gray-800">
@@ -54,25 +55,30 @@ const ProtectedLayout = () => {
 
 const Router = () => {
   return (
+
     <BrowserRouter>
-      <Routes>
-        <Route element={<PublicOnly />}>
-          <Route index element={<Login />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/join" element={<Join />} />
-        </Route>
+      <HttpProvider>
+        <Routes>
+          <Route element={<PublicOnly />}>
+            <Route index element={<Login />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/join" element={<Join />} />
+          </Route>
 
-        <Route element={<ProtectedLayout />}>
-          <Route path="/home" element={<Home />} />
-          <Route path="/schedule" element={<Schedule />} />
-          <Route path="/notes" element={<Notes />} />
-          <Route path="/ledger" element={<Ledger />} />
-          <Route path="/settings" element={<Setting />} />
-        </Route>
 
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+          <Route element={<ProtectedLayout />}>
+            <Route path="/home" element={<Home />} />
+            <Route path="/schedule" element={<Schedule />} />
+            <Route path="/notes" element={<Notes />} />
+            <Route path="/ledger" element={<Ledger />} />
+            <Route path="/settings" element={<Setting />} />
+          </Route>
+
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </HttpProvider>
     </BrowserRouter>
+
   );
 };
 

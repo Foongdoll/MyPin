@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Calendar1, ChevronLeft, ChevronRight } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Calendar1, CalendarCheck, ChevronLeft, ChevronRight } from "lucide-react";
 
 type Day = { date: Date; inMonth: boolean; isToday: boolean; iso: string };
 
@@ -31,8 +31,10 @@ function isSameDay(a: Date, b: Date) {
   );
 }
 
-function toISO(d: Date) {
-  return d.toISOString().slice(0, 10);
+const pad = (value: number) => String(value).padStart(2, "0");
+
+function toLocalISODate(d: Date) {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 function buildMonthMatrix(view: Date, weekStartsOn: 0 | 1 = 0): Day[] {
@@ -51,7 +53,7 @@ function buildMonthMatrix(view: Date, weekStartsOn: 0 | 1 = 0): Day[] {
       date: d,
       inMonth: d >= first && d <= last,
       isToday: isSameDay(d, today),
-      iso: toISO(d),
+      iso: toLocalISODate(d),
     });
   }
   return days;
@@ -62,6 +64,9 @@ export type CalendarProps = {
   onChange?: (date: Date) => void;
   weekStartsOn?: 0 | 1;
   className?: string;
+  markedDays?: Set<string> | string[];
+  viewDate?: Date | null;
+  onViewDateChange?: (date: Date) => void;
 };
 
 export default function Calendar({
@@ -69,12 +74,33 @@ export default function Calendar({
   onChange,
   weekStartsOn = 0,
   className = "",
+  markedDays,
+  viewDate = null,
+  onViewDateChange,
 }: CalendarProps) {
-  const [view, setView] = useState<Date>(value ?? new Date());
+  const [internalView, setInternalView] = useState<Date>(value ?? new Date());
+  const view = viewDate ?? internalView;
+  useEffect(() => {
+    if (viewDate) {
+      setInternalView(viewDate);
+    }
+  }, [viewDate]);
+
+  useEffect(() => {
+    if (!viewDate && value) {
+      setInternalView(value);
+    }
+  }, [value, viewDate]);
+
   const days = useMemo(
     () => buildMonthMatrix(view, weekStartsOn),
     [view, weekStartsOn]
   );
+  const markedDaySet = useMemo(() => {
+    if (!markedDays) return null;
+    if (markedDays instanceof Set) return markedDays;
+    return new Set(markedDays);
+  }, [markedDays]);
   const weekdayLabels = useMemo(() => {
     return WEEKDAYS.slice(weekStartsOn).concat(WEEKDAYS.slice(0, weekStartsOn));
   }, [weekStartsOn]);
@@ -82,11 +108,17 @@ export default function Calendar({
   const year = view.getFullYear();
   const month = view.getMonth() + 1;
 
-  const prevMonth = () =>
-    setView(new Date(view.getFullYear(), view.getMonth() - 1, 1));
-  const nextMonth = () =>
-    setView(new Date(view.getFullYear(), view.getMonth() + 1, 1));
+  const updateView = (next: Date) => {
+    if (!viewDate) {
+      setInternalView(next);
+    }
+    onViewDateChange?.(next);
+  };
 
+  const prevMonth = () =>
+    updateView(new Date(view.getFullYear(), view.getMonth() - 1, 1));
+  const nextMonth = () =>
+    updateView(new Date(view.getFullYear(), view.getMonth() + 1, 1));
 
   return (
     <div
@@ -155,8 +187,9 @@ export default function Calendar({
               ? "bg-gradient-to-br from-blue-500 to-blue-400 text-white shadow-xl ring-2 "
               : d.isToday
                 ? "border bg-white shadow-inner "
-                : "shadow-sm hover:-translate-y-0.5 hover:shadow-md",
+              : "shadow-sm hover:-translate-y-0.5 hover:shadow-md",
           ];
+          const hasSchedule = markedDaySet?.has(d.iso);
 
           return (
             <button
@@ -171,6 +204,12 @@ export default function Calendar({
                 <span className={`text-[12px] tracking-[0.3em] ${selected ? "text-white" : "text-black"}`}>
                   오늘
                 </span>
+              )}
+              {hasSchedule && (
+                <CalendarCheck
+                  aria-hidden="true"
+                  className={`absolute left-2 bottom-1 h-4 w-4 ${selected ? "text-white" : "text-emerald-500"}`}
+                />
               )}
             </button>
           );

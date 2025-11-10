@@ -1,6 +1,5 @@
 export type ScheduleCreateFormProp = {
     isFormView: boolean;
-    setIsFormView: React.Dispatch<React.SetStateAction<boolean>>;
     date: Date | null;
     startDate: Date | null;
     setStartDate: React.Dispatch<React.SetStateAction<Date>>;
@@ -17,6 +16,8 @@ export type ScheduleCreateFormProp = {
     createSchedule: () => void;
     handleTabs: (i: TabsType) => void;
     isCreatingSchedule: boolean;
+    isEditingSchedule: boolean;
+    cancelEditing: () => void;
 };
 
 export type TabsType = {
@@ -35,6 +36,8 @@ export type Schedule = {
     place?: string;
     x?: number;
     y?: number;
+    ownerId?: number;
+    ownerName?: string;
 }
 
 export type ScheduleComment = {
@@ -71,7 +74,21 @@ export type ScheduleCreatePayload = {
     place?: string;
 };
 
+export type ScheduleUpdatePayload = ScheduleCreatePayload;
+
 export type ScheduleCommentPayload = {
     author: string;
     content: string;
+};
+
+export type ScheduleCommentUpdatePayload = ScheduleCommentPayload;
+
+export type ScheduleCalendarDay = {
+    date: string;
+    count: number;
+};
+
+export type ScheduleCalendarResponse = {
+    month: string;
+    days: ScheduleCalendarDay[];
 };
