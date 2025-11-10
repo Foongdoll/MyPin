@@ -3,18 +3,14 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import { secureStorage } from "../shared/lib/secureStorage";
 import type { User } from "../shared/types/AuthType";
 
-
-
 interface SessionState {
   accessToken: string | null;
   refreshToken: string | null;
-  user: User;
-  isAuthenticated: boolean;
-  // actions
-  setSession: (accessToken: string, refreshToken: string | null, user: User) => void;
+  user: User | null;
+  setSession: (accessToken: string, refreshToken: string | null, user: User | null) => void;
   setAccessToken: (accessToken: string | null) => void;
   clearSession: () => void;
-  logout: () => void; // 인터셉터에서 사용할 별칭
+  logout: () => void;
 }
 
 export const useSessionStore = create<SessionState>()(
@@ -23,9 +19,6 @@ export const useSessionStore = create<SessionState>()(
       accessToken: null,
       refreshToken: null,
       user: null,
-      get isAuthenticated() {
-        return !!get().accessToken && !!get().user;
-      },
 
       setSession: (accessToken, refreshToken, user) =>
         set({ accessToken, refreshToken: refreshToken ?? get().refreshToken, user }),
@@ -39,7 +32,6 @@ export const useSessionStore = create<SessionState>()(
     {
       name: "session",
       storage: createJSONStorage(() => secureStorage),
-      // persist 대상만 명시 (access/refresh/user)
       partialize: (s) => ({
         accessToken: s.accessToken,
         refreshToken: s.refreshToken,
