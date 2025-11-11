@@ -62,7 +62,7 @@ export const useSessionStore = create<SessionState>()(
           user: null,
           logoutReason: options?.reason ?? "unknown",
           logoutSignal: Date.now(),
-        });
+        });        
       },
     }),
     {

@@ -3,6 +3,9 @@ import type { ScheduleCreateFormProp } from "../../shared/types/ScheduleType";
 import { motion, AnimatePresence } from "framer-motion";
 import DatePicker from "react-datepicker";
 import { useState } from "react";
+import DaumPostcode from "../../shared/lib/daumPostCode/DaumPostCode";
+import DaumPostcodeModal from "../../shared/lib/daumPostCode/DaumPostCode";
+import { geocodeAddress } from "../../shared/lib/naverMaps/geocodeApi";
 
 const ScheduleCreateForm = ({
   isFormView,
@@ -25,6 +28,7 @@ const ScheduleCreateForm = ({
   isEditingSchedule,
   cancelEditing
 }: ScheduleCreateFormProp) => {
+  const [isPostVisible, setIsPostVisible] = useState<boolean>(false);
   const [u, setU] = useState<string>("");
   const handleClose = () => {
     cancelEditing();
@@ -33,10 +37,6 @@ const ScheduleCreateForm = ({
 
   const [isFocus, setIsFocus] = useState<boolean>(false);
   const handleEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
-
-    console.log(startDate);
-    console.log(endDate);
-
     if (e.key === "Enter") {
       if (u.trim()) setParticipant((prev) => [...prev, u.trim()]);
       setU("");
@@ -142,89 +142,101 @@ const ScheduleCreateForm = ({
                   <button
                     type="button"
                     className="shrink-0 rounded-lg px-4 py-2 text-white bg-indigo-600 hover:bg-indigo-700"
+                    onClick={() => setIsPostVisible(true)}
                   >
-                    지도 선택
+                    장소등록
                   </button>
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">참여자</label>
-                <div className="flex gap-2">
-                  <input
-                    className="flex-1 rounded-lg border border-slate-200 p-3 focus:outline-none focus:ring-2 focus:ring-indigo-300"
-                    placeholder="참여자 이름 또는 이메일 입력"
-                    onChange={(e) => setU(e.target.value)}
-                    onFocus={() => { setIsFocus(true) }}
-                    onBlur={() => { setIsFocus(false) }}
-                    onKeyDown={(e) => {
-                      isFocus && handleEnter(e)
+                {/* ✅ 모달 포털 */}
+                {isPostVisible && (
+                  <DaumPostcodeModal
+                    onSelect={(data) => {
+                      setPlace(data.address);
+                      console.log("위도:", data.lat, "경도:", data.lng);
+                      setIsPostVisible(false);
                     }}
-                    value={u}
+                    onClose={() => setIsPostVisible(false)}
                   />
-                  <button
-                    type="button"
-                    className="shrink-0 rounded-lg px-4 py-2 text-white bg-indigo-600 hover:bg-indigo-700"
-                    onClick={() => {
-                      if (u.trim()) setParticipant((prev) => [...prev, u.trim()]);
-                      setU("");
-                    }}
-                  >
-                    추가
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {participant.map((i, idx) => (
-                    <span
-                      key={idx}
-                      className="flex items-center gap-1 rounded-full bg-indigo-50 text-indigo-700 px-3 py-1 text-sm"
+                )}
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">참여자</label>
+                  <div className="flex gap-2">
+                    <input
+                      className="flex-1 rounded-lg border border-slate-200 p-3 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                      placeholder="참여자 이름 또는 이메일 입력"
+                      onChange={(e) => setU(e.target.value)}
+                      onFocus={() => { setIsFocus(true) }}
+                      onBlur={() => { setIsFocus(false) }}
+                      onKeyDown={(e) => {
+                        isFocus && handleEnter(e)
+                      }}
+                      value={u}
+                    />
+                    <button
+                      type="button"
+                      className="shrink-0 rounded-lg px-4 py-2 text-white bg-indigo-600 hover:bg-indigo-700"
+                      onClick={() => {
+                        if (u.trim()) setParticipant((prev) => [...prev, u.trim()]);
+                        setU("");
+                      }}
                     >
-                      {i}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setParticipant((prev) => prev.filter((_, index) => index !== idx))
-                        }
-                        className="text-indigo-500 hover:text-indigo-800"
+                      추가
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {participant.map((i, idx) => (
+                      <span
+                        key={idx}
+                        className="flex items-center gap-1 rounded-full bg-indigo-50 text-indigo-700 px-3 py-1 text-sm"
                       >
-                        ×
-                      </button>
-                    </span>
-                  ))}
+                        {i}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setParticipant((prev) => prev.filter((_, index) => index !== idx))
+                          }
+                          className="text-indigo-500 hover:text-indigo-800"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">메모</label>
-                <textarea
-                  rows={5}
-                  className="w-full rounded-lg border border-slate-200 p-3 focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-y max-h-[40vh] overflow-auto"
-                  placeholder="추가 메모를 입력하세요"
-                  value={memo}
-                  onChange={(e) => setMemo(e.target.value)}
-                />
-              </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">메모</label>
+                  <textarea
+                    rows={5}
+                    className="w-full rounded-lg border border-slate-200 p-3 focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-y max-h-[40vh] overflow-auto"
+                    placeholder="추가 메모를 입력하세요"
+                    value={memo}
+                    onChange={(e) => setMemo(e.target.value)}
+                  />
+                </div>
 
-              <div className="flex flex-wrap gap-3">
-                {isEditingSchedule && (
+                <div className="flex flex-wrap gap-3">
+                  {isEditingSchedule && (
+                    <button
+                      type="button"
+                      className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                      onClick={cancelEditing}
+                      disabled={isCreatingSchedule}
+                    >
+                      수정 취소
+                    </button>
+                  )}
                   <button
                     type="button"
-                    className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
-                    onClick={cancelEditing}
+                    className={`rounded-xl px-6 py-3 font-semibold text-white shadow bg-gradient-to-r from-indigo-500 to-violet-600 ${isCreatingSchedule ? "opacity-70 cursor-not-allowed" : "hover:opacity-95"
+                      }`}
+                    onClick={createSchedule}
                     disabled={isCreatingSchedule}
                   >
-                    수정 취소
+                    {isCreatingSchedule ? (isEditingSchedule ? "수정 중..." : "등록 중...") : isEditingSchedule ? "일정 수정" : "일정 등록"}
                   </button>
-                )}
-                <button
-                  type="button"
-                  className={`rounded-xl px-6 py-3 font-semibold text-white shadow bg-gradient-to-r from-indigo-500 to-violet-600 ${isCreatingSchedule ? "opacity-70 cursor-not-allowed" : "hover:opacity-95"
-                    }`}
-                  onClick={createSchedule}
-                  disabled={isCreatingSchedule}
-                >
-                  {isCreatingSchedule ? (isEditingSchedule ? "수정 중..." : "등록 중...") : isEditingSchedule ? "일정 수정" : "일정 등록"}
-                </button>
+                </div>
               </div>
             </div>
           </motion.div>

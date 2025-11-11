@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+﻿import { useEffect, useMemo, useState, type FormEvent } from "react";
 import useSchedule from "../../features/schedule/useSchedule";
 import Calendar from "../../shared/lib/calendar/Calendar";
 import ScheduleService from "../../features/schedule/ScheduleService";
@@ -8,6 +8,8 @@ import ScheduleCreateForm from "./ScheduleCreateForm";
 import { motion } from "framer-motion"
 import ExpandedCommentTooltip from "./CommentTooltip";
 import { useSessionStore } from "../../state/session.store";
+import { LucideShare2, Map, MessageSquareShare, ScreenShare, Share } from "lucide-react";
+import ScheduleMaps from "../../shared/lib/naverMaps/Maps";
 
 const PAGE_BLOCK_SIZE = 5;
 
@@ -61,6 +63,8 @@ const Schedule = () => {
     refreshSchedules,
     updateComment,
     deleteComment,
+    isMapVisible,
+    setIsMapVisible
   } = useSchedule();
 
   const sessionUser = useSessionStore((state) => state.user);
@@ -221,7 +225,6 @@ const Schedule = () => {
             </div>
             {apiError && <p className="text-left text-sm text-rose-500">{apiError}</p>}
           </div>
-
           {/* 탭 콘텐츠 */}
           {tabs.map((e) => {
             if (!e.isActive) return null;
@@ -229,111 +232,155 @@ const Schedule = () => {
             switch (e.value) {
               case "list":
                 return (
-                  <div className="flex flex-col p-3 text-base md:text-lg lg:text-2xl">
-                    {/* 헤더 */}
-                    <div className="hidden md:flex bg-[#f0f6fa] font-semibold rounded-t-2xl">
-                      <span className="w-[10%]">번호</span>
-                      <span className="w-[20%]">제목</span>
-                      <span className="w-[30%]">날짜</span>
-                      <span className="w-[20%]">참여자</span>
-                      <span className="w-[20%]">비고</span>
-                    </div>
+                  <div className="w-full min-w-0">
+                    {/* 상단 영역(탭/버튼 등)은 유지한다고 가정 */}
 
-                    {/* 리스트 */}
-                    <div className="flex flex-col h-120 bg-gradient-to-r from-[#faf6f6] via-[#f0fafc] to-[#e8f8fa] rounded-b-2xl">
-                      <div className="h-full">
+                    {/* 카드 컨테이너 */}
+                    <div className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden max-w-full">
+                      {/* 카드 리스트 영역 */}
+                      <div className="p-4">
                         {isLoadingSchedules ? (
-                          <div className="flex h-full items-center justify-center text-base text-slate-500">
+                          <div className="flex h-48 items-center justify-center text-sm text-slate-500">
                             일정을 불러오는 중입니다...
                           </div>
                         ) : paged.length > 0 ? (
-                          paged.map((i, n) => {
-                            const globalIndex = startIdx + n;
-                            return (
-                              <div
-                                key={i.no ?? globalIndex}
-                                className={`flex flex-col md:flex-row items-start md:items-center gap-1 md:gap-0 border-b border-slate-200 last:border-none px-3 py-2 md:py-3 cursor-pointer ${selectedSchedule && i.no === selectedSchedule.no ? "bg-blue-100" : ""
-                                  }`}
-                                onClick={() => setSelectedSchedule(i)}
-                              >
-                                <span className="w-full md:w-[10%] font-semibold md:font-normal text-blue-700">
-                                  {globalIndex + 1}
-                                </span>
-                                <span className="w-full md:w-[20%] truncate">{i.title}</span>
-                                <span className="w-full md:w-[30%] text-slate-600 truncate">
-                                  {i.startDate + " ~ " + i.endDate}
-                                </span>
-                                <span className="w-full md:w-[20%] text-slate-700 truncate">
-                                  {i.participant.join(", ")}
-                                </span>
-                                <span className="w-full md:w-[20%] text-slate-500 truncate">{i.memo}</span>
-                              </div>
-                            );
-                          })
+                          <ul
+                            className="
+                  grid gap-4
+                  sm:grid-cols-2
+                  lg:grid-cols-3
+                  xl:grid-cols-4
+                "
+                          >
+                            {paged.map((i, n) => {
+                              const globalIndex = startIdx + n;
+                              const isActive = selectedSchedule && i.no === selectedSchedule.no;
+
+                              return (
+                                <li key={i.no ?? globalIndex} className="min-w-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedSchedule(i)}
+                                    className={[
+                                      "group w-full text-left rounded-2xl border px-4 py-4 transition",
+                                      "border-slate-200 bg-white hover:shadow-md hover:border-blue-200",
+                                      isActive ? "ring-2 ring-blue-400/60" : "ring-0",
+                                    ].join(" ")}
+                                  >
+                                    {/* 상단 메타: 번호 + 날짜 */}
+                                    <div className="flex items-center justify-between gap-3">
+                                      <span className="flex shrink-0 items-center justify-center h-7 w-7 rounded-full bg-blue-50 text-blue-600 text-sm font-semibold">
+                                        {globalIndex + 1}
+                                      </span>
+                                      <span className="ml-auto truncate text-xs text-slate-500">
+                                        {i.startDate} ~ {i.endDate}
+                                      </span>
+                                    </div>
+
+                                    {/* 제목 */}
+                                    <h3 className="mt-3 text-base font-semibold text-slate-900 line-clamp-2 min-w-0">
+                                      {i.title}
+                                    </h3>
+
+                                    {/* 참여자 */}
+                                    {i?.participant?.length > 0 && (
+                                      <p className="mt-2 text-sm text-slate-700 line-clamp-1">
+                                        {Array.isArray(i.participant)
+                                          ? i.participant.join(", ")
+                                          : i.participant}
+                                      </p>
+                                    )}
+
+                                    {/* 메모(비고) */}
+                                    {i?.memo && (
+                                      <p className="mt-2 text-sm text-slate-500 line-clamp-2">
+                                        {i.memo}
+                                      </p>
+                                    )}
+
+                                    {/* 하단 뱃지/액션 라인 */}
+                                    <div className="mt-4 flex items-center justify-between">
+                                      <span className="rounded-full bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">
+                                        일정
+                                      </span>
+                                      <span className="text-xs text-blue-600 opacity-0 transition group-hover:opacity-100">
+                                        <LucideShare2 />
+                                      </span>
+                                    </div>
+                                  </button>
+                                </li>
+                              );
+                            })}
+                          </ul>
                         ) : (
-                          <div className="flex h-full items-center justify-center text-sm text-slate-400">
+                          <div className="flex h-48 items-center justify-center text-sm text-slate-400">
                             등록된 일정이 없습니다.
                           </div>
                         )}
                       </div>
-                    </div>
 
-                    {/* 간단 페이지 네비게이션 */}
-                    <div className="flex items-center justify-center gap-2 py-4">
-                      <button
-                        className="rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
-                        onClick={() => setPage((p) => Math.max(1, p - 1))}
-                        disabled={page <= 1}
-                      >
-                        이전
-                      </button>
-                      {paginationNumbers.map((pageNumber) => (
-                        <button
-                          key={pageNumber}
-                          className={`h-9 w-9 rounded-full border text-sm font-semibold transition ${pageNumber === page
-                            ? "border-blue-500 bg-blue-500 text-white shadow-inner"
-                            : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:text-blue-600"
-                            }`}
-                          onClick={() => setPage(pageNumber)}
-                          aria-current={pageNumber === page ? "page" : undefined}
-                        >
-                          {pageNumber}
-                        </button>
-                      ))}
-                      <button
-                        className="rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
-                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                        disabled={page >= totalPages}
-                      >
-                        다음
-                      </button>
+                      {/* 하단 페이징 */}
+                      <div className="border-t border-slate-100 bg-white/90 px-4 py-3">
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            className="rounded-full border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+                            onClick={() => setPage((p) => Math.max(1, p - 1))}
+                            disabled={page <= 1}
+                          >
+                            이전
+                          </button>
+
+                          {paginationNumbers.map((pageNumber) => (
+                            <button
+                              key={pageNumber}
+                              className={[
+                                "h-8 w-8 rounded-full border text-sm font-semibold transition",
+                                pageNumber === page
+                                  ? "border-blue-500 bg-blue-500 text-white shadow-inner"
+                                  : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:text-blue-600",
+                              ].join(" ")}
+                              onClick={() => setPage(pageNumber)}
+                              aria-current={pageNumber === page ? "page" : undefined}
+                            >
+                              {pageNumber}
+                            </button>
+                          ))}
+
+                          <button
+                            className="rounded-full border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+                            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                            disabled={page >= totalPages}
+                          >
+                            다음
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 );
-
               case "create":
                 return isFormView ? (
-          <ScheduleCreateForm
-            isFormView={isFormView}
-            date={date}
-            startDate={startDate}
-            setStartDate={setStartDate}
-            endDate={endDate}
-            setEndDate={setEndDate}
-            title={title}
-            setTitle={setTitle}
-            participant={participant}
-            setParticipant={setParticipant}
-            memo={memo}
-            setMemo={setMemo}
-            place={place}
-            setPlace={setPlace}
-            createSchedule={createSchedule}
-            handleTabs={handleTabs}
-            isCreatingSchedule={isCreatingSchedule}
-            isEditingSchedule={isEditingSchedule}
-            cancelEditing={cancelEditing}
-          />
+                  <ScheduleCreateForm
+                    isFormView={isFormView}
+                    date={date}
+                    startDate={startDate}
+                    setStartDate={setStartDate}
+                    endDate={endDate}
+                    setEndDate={setEndDate}
+                    title={title}
+                    setTitle={setTitle}
+                    participant={participant}
+                    setParticipant={setParticipant}
+                    memo={memo}
+                    setMemo={setMemo}
+                    place={place}
+                    setPlace={setPlace}
+                    createSchedule={createSchedule}
+                    handleTabs={handleTabs}
+                    isCreatingSchedule={isCreatingSchedule}
+                    isEditingSchedule={isEditingSchedule}
+                    cancelEditing={cancelEditing}
+                  />
                 ) : (
                   <div className="flex justify-center items-center h-full">
                     <button
@@ -401,7 +448,8 @@ const Schedule = () => {
                   <p className="text-xs font-semibold uppercase text-slate-400">장소</p>
                   <p className="mt-2 text-lg font-semibold text-slate-900">
                     {selectedSchedule.place ? selectedSchedule.place : "아직 등록되지 않았어요."}
-                    {selectedSchedule.place && (<button type="button" className="float-right font-normal border-2 border-indigo-200 bg-indigo-300 hover:-translate-1 rounded-2xl p-2 text-sm">지도 열기</button>)}
+                    {selectedSchedule.place && (<button type="button"
+                      onClick={() => setIsMapVisible((prev) => !prev)} className="float-right font-normal border-2 border-indigo-200 bg-indigo-300 hover:-translate-1 rounded-2xl p-2 text-sm"><Map /></button>)}
                   </p>
                 </div>
                 <div className="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm">
@@ -424,9 +472,10 @@ const Schedule = () => {
               </div>
               <div className="rounded-3xl border border-white/70 bg-white/80 p-5 shadow-inner">
                 <p className="text-xs font-semibold uppercase text-slate-400">메모</p>
-                <p className="mt-2 text-sm leading-relaxed text-slate-600 ">
+                <p className="mt-2 text-sm leading-relaxed text-slate-600 whitespace-pre-wrap break-words">
                   {selectedSchedule.memo ? selectedSchedule.memo : "추가 메모가 없습니다."}
                 </p>
+
               </div>
             </div>
           ) : (
@@ -484,7 +533,7 @@ const Schedule = () => {
           rounded-2xl border border-slate-100 bg-slate-50/80 p-4 text-left shadow-sm
           transition
           hover:shadow-md active:scale-[0.995] focus:outline-none focus:ring-2 focus:ring-emerald-300/60
-        "          
+        "
                     >
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-sm font-semibold text-slate-800">{comment.author}</span>
@@ -556,6 +605,7 @@ const Schedule = () => {
         pendingAction={commentAction}
       />
 
+      {isMapVisible && <ScheduleMaps setVisible={setIsMapVisible} />}
     </div>
   );
 };

@@ -62,6 +62,8 @@ const useSchedule = () => {
   const [isMutatingLike, setIsMutatingLike] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
 
+  const [isMapVisible, setIsMapVisible] = useState<boolean>(false);
+
   const derivedTotal = totalCount || scheduleList.length || 1;
   const totalPages = Math.max(1, Math.ceil(derivedTotal / pageSize));
   const startIdx = (page - 1) * pageSize;
@@ -71,15 +73,27 @@ const useSchedule = () => {
     setReloadToken((token) => token + 1);
   }, []);
 
-  const resetFormFields = useCallback(() => {
-    setTitle("");
-    setParticipant([]);
-    setMemo("");
-    setPlace("");
-    setStartDate(date ?? new Date());
-    setEndDate(date ?? new Date());
-    setEditingScheduleId(null);
-  }, [date]);
+  const resetFormFields = useCallback(
+    (options?: { preserveSelectedDate?: boolean }) => {
+      const shouldPreserve = options?.preserveSelectedDate ?? false;
+      setTitle("");
+      setParticipant([]);
+      setMemo("");
+      setPlace("");
+
+      if (shouldPreserve) {
+        const fallback = startDate ?? date ?? new Date();
+        setEndDate(fallback);
+      } else {
+        const base = date ?? new Date();
+        setStartDate(base);
+        setEndDate(base);
+      }
+
+      setEditingScheduleId(null);
+    },
+    [date, startDate]
+  );
 
   const startDateKey = useMemo(() => toISODateLocal(startDate), [startDate]);
   const startDateKeyRef = useRef(startDateKey);
@@ -285,7 +299,7 @@ const useSchedule = () => {
   );
 
   const cancelEditing = useCallback(() => {
-    resetFormFields();
+    resetFormFields({ preserveSelectedDate: true });
     setIsFormView(false);
   }, [resetFormFields, setIsFormView]);
 
@@ -306,7 +320,7 @@ const useSchedule = () => {
     const sanitizedParticipants = participant.map((name) => name.trim()).filter(Boolean);
 
     setIsCreatingSchedule(true);
-    try {            
+    try {
       const payload = {
         title: title.trim(),
         startDate: toLocalDateTimeString(startDate),
@@ -327,7 +341,7 @@ const useSchedule = () => {
         setSelectedSchedule(saved);
       }
 
-      resetFormFields();
+      resetFormFields({ preserveSelectedDate: true });
       setIsFormView(false);
       setTabs((prev) => prev.map((tab) => ({ ...tab, isActive: tab.value === "list" })));
       setPage(1);
@@ -363,7 +377,7 @@ const useSchedule = () => {
         if (selectedSchedule?.no === scheduleNo) {
           setSelectedSchedule(null);
         }
-        resetFormFields();
+        resetFormFields({ preserveSelectedDate: true });
         refreshSchedules();
       } catch (error) {
         console.error(error);
@@ -497,10 +511,10 @@ const useSchedule = () => {
     refreshSchedules,
     updateComment,
     deleteComment,
+    isMapVisible,
+    setIsMapVisible
   };
 };
 
 export default useSchedule;
-
-
 

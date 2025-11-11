@@ -11,8 +11,15 @@ const Login = () => {
         <h1 className="text-3xl font-bold text-gray-800 mb-2">MYPIN 로그인</h1>
         <p className="text-gray-500 text-sm">일상과 개발을 연결하는 당신의 공간</p>
 
-        <div className="flex flex-col gap-4 mt-6">
-          <div className="text-left">
+        {/* ✅ form submit 으로 Enter 처리 */}
+        <form
+          className="flex flex-col gap-4 mt-6 text-left"
+          onSubmit={(e) => {
+            e.preventDefault(); // 기본 새로고침 방지
+            if (!loading) handleLogin();
+          }}
+        >
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">아이디</label>
             <input
               type="text"
@@ -20,10 +27,11 @@ const Login = () => {
               onChange={(e) => setId(e.target.value)}
               className="w-full border rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none text-gray-800"
               placeholder="아이디를 입력하세요"
+              autoComplete="username"
             />
           </div>
 
-          <div className="text-left">
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">비밀번호</label>
             <input
               type="password"
@@ -31,21 +39,21 @@ const Login = () => {
               onChange={(e) => setPw(e.target.value)}
               className="w-full border rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none text-gray-800"
               placeholder="비밀번호를 입력하세요"
+              autoComplete="current-password"
             />
           </div>
-        </div>
 
-        {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
+          {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
 
-        <button
-          type="button"
-          onClick={handleLogin}
-          disabled={loading}
-          className="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl transition-all duration-200 flex justify-center items-center gap-2"
-        >
-          {loading && <Loader2 className="w-5 h-5 animate-spin" />}
-          로그인
-        </button>
+          <button
+            type="submit" // ✅ submit
+            disabled={loading}
+            className="mt-2 w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl transition-all duration-200 flex justify-center items-center gap-2"
+          >
+            {loading && <Loader2 className="w-5 h-5 animate-spin" />}
+            로그인
+          </button>
+        </form>
 
         <p className="text-sm text-gray-500 mt-4">
           계정이 없으신가요?{" "}
