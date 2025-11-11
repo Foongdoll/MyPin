@@ -15,6 +15,8 @@ import com.foongdoll.server.schedule.dto.ScheduleResponse;
 import com.foongdoll.server.schedule.repository.ScheduleCommentRepository;
 import com.foongdoll.server.schedule.repository.ScheduleLikeRepository;
 import com.foongdoll.server.schedule.repository.ScheduleRepository;
+import com.foongdoll.server.security.model.AuthenticatedUser;
+import com.foongdoll.server.security.service.SecurityUtils;
 import com.foongdoll.server.user.domain.User;
 import com.foongdoll.server.user.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -53,10 +55,11 @@ public class ScheduleService {
     public ScheduleListResponse getSchedules(int page, int pageSize, String date) {
         int safePage = Math.max(1, page);
         int safeSize = Math.min(Math.max(1, pageSize), 50);
+        AuthenticatedUser u = SecurityUtils.getAuthenticatedUser();
         Pageable pageable = PageRequest.of(safePage - 1, safeSize, Sort.by(Sort.Direction.ASC, "startDate").and(Sort.by("id")));
 
         LocalDate targetDate = parseDate(date);
-        Page<Schedule> schedulePage = scheduleRepository.findByTargetDate(targetDate, pageable);
+        Page<Schedule> schedulePage = scheduleRepository.findByTargetDateAndOwnerId(targetDate, u.getId(), pageable);
 
         List<ScheduleResponse> items = schedulePage.getContent().stream()
                 .map(this::toScheduleResponse)
@@ -75,7 +78,8 @@ public class ScheduleService {
         LocalDate monthStart = resolveMonthStart(month);
         LocalDate monthEnd = monthStart.plusMonths(1).minusDays(1);
 
-        List<Schedule> schedules = scheduleRepository.findByDateRange(monthStart, monthEnd);
+        AuthenticatedUser user = SecurityUtils.getAuthenticatedUser();
+        List<Schedule> schedules = scheduleRepository.findByDateRangeAndOwnerId(monthStart, monthEnd, user.getId());
         Map<LocalDate, LongAdder> dayCounters = new HashMap<>();
 
         for (Schedule schedule : schedules) {

@@ -13,15 +13,25 @@ import java.util.List;
 public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
 
     @Query("""
-            SELECT s FROM Schedule s
-            WHERE (:targetDate IS NULL OR (s.startDate <= :targetDate AND s.endDate >= :targetDate))
-            """)
-    Page<Schedule> findByTargetDate(@Param("targetDate") LocalDate targetDate, Pageable pageable);
+    SELECT s FROM Schedule s
+    WHERE (:targetDate IS NULL OR (s.startDate <= :targetDate AND s.endDate >= :targetDate))
+      AND (:ownerId IS NULL OR s.owner.id = :ownerId)
+    """)
+    Page<Schedule> findByTargetDateAndOwnerId(
+            @Param("targetDate") LocalDate targetDate,
+            @Param("ownerId") Long ownerId,
+            Pageable pageable
+    );
 
     @Query("""
             SELECT s FROM Schedule s
             WHERE (:startDate IS NULL OR s.endDate >= :startDate)
               AND (:endDate IS NULL OR s.startDate <= :endDate)
+              AND (:ownerId IS NULL OR s.owner.id = :ownerId)
             """)
-    List<Schedule> findByDateRange(@Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
+    List<Schedule> findByDateRangeAndOwnerId(
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            @Param("ownerId") Long ownerId
+    );
 }
