@@ -1,17 +1,7 @@
 package com.foongdoll.server.user.domain;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
-import jakarta.persistence.PrePersist;
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import jakarta.persistence.*;
+import lombok.*;
 
 import java.time.LocalDateTime;
 
@@ -33,7 +23,7 @@ public class User {
     @Column(nullable = false)
     private String password;
 
-    @Column(nullable = false, length = 50)
+    @Column(nullable = false, length = 50, unique = true)
     private String name;
 
     @Column(length = 120)
@@ -41,6 +31,11 @@ public class User {
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
+
+    /** 🔹 역할 연결 (다대일) */
+    @ManyToOne(fetch = FetchType.EAGER) // 사용자 한 명이 하나의 Role을 가짐
+    @JoinColumn(name = "role_id", nullable = false)
+    private Role role;
 
     @PrePersist
     protected void onCreate() {

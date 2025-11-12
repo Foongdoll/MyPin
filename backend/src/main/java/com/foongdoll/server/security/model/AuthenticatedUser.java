@@ -3,6 +3,7 @@ package com.foongdoll.server.security.model;
 import com.foongdoll.server.user.domain.User;
 import lombok.Getter;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
@@ -29,7 +30,7 @@ public class AuthenticatedUser implements UserDetails {
                 user.getId(),
                 user.getUserId(),
                 user.getPassword(),
-                Collections.emptyList()
+                Collections.singletonList(new SimpleGrantedAuthority(user.getRole().getName()))
         );
     }
 
