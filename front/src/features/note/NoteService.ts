@@ -1,97 +1,62 @@
-import type { Comment, NoteDetail } from "../../shared/types/NoteType";
+import api from "../../shared/lib/axios";
+import type { ApiResponse } from "../../shared/lib/axios/types";
+import type {
+  AssetUploadResponse,
+  CategoryCreatePayload,
+  CategoryNode,
+  NoteDetail,
+  NoteListParams,
+  NoteListResponse,
+  NotePayload,
+} from "../../shared/types/NoteType";
 
-const BASE = "/api";
+const responseBody = <T>(res: ApiResponse<T>): T => (res?.data ?? ({} as T));
 
-export const NoteService = {
-    async list(params: { cat?: string; q?: string; tag?: string; page?: number; size?: number }) {
-        const qs = new URLSearchParams();
-        if (params.cat) qs.set("cat", params.cat);
-        if (params.q) qs.set("q", params.q);
-        if (params.tag) qs.set("tag", params.tag);
-        qs.set("page", String(params.page ?? 1));
-        qs.set("size", String(params.size ?? 12));
-        const res = await fetch(`${BASE}/notes?${qs.toString()}`);
-        if (!res.ok) throw new Error("노트 목록 조회 실패");
-        return res.json();
-    },
+const NoteService = {
+  async fetchNotes(params: NoteListParams) {
+    const { data } = await api.get<ApiResponse<NoteListResponse>>("/note", {
+      params,
+    });
+    return responseBody(data);
+  },
 
-    async get(id: string): Promise<NoteDetail> {
-        const res = await fetch(`${BASE}/notes/${id}`);
-        if (!res.ok) throw new Error("노트 조회 실패");
-        return res.json() as Promise<NoteDetail>;
-    },
+  async fetchNote(id: string | number) {
+    const { data } = await api.get<ApiResponse<NoteDetail>>(`/note/${id}`);
+    return responseBody(data);
+  },
 
+  async createNote(payload: NotePayload) {
+    const { data } = await api.post<ApiResponse<NoteDetail>>("/note", payload);
+    return responseBody(data);
+  },
 
-    async create(payload: Partial<NoteDetail>) {
-        const res = await fetch(`${BASE}/notes`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-        });
-        if (!res.ok) throw new Error("노트 생성 실패");
-        return res.json();
-    },
+  async updateNote(id: string | number, payload: Partial<NotePayload>) {
+    const { data } = await api.put<ApiResponse<NoteDetail>>(`/note/${id}`, payload);
+    return responseBody(data);
+  },
 
-    async update(id: string, payload: Partial<NoteDetail>) {
-        const res = await fetch(`${BASE}/notes/${id}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-        });
-        if (!res.ok) throw new Error("노트 수정 실패");
-        return res.json();
-    },
+  async deleteNote(id: string | number) {
+    await api.delete<ApiResponse<void>>(`/note/${id}`);
+  },
 
-    async like(id: string): Promise<{ liked: boolean; likes: number }> {
-        const res = await fetch(`${BASE}/notes/${id}/like`, { method: "POST" });
-        if (!res.ok) throw new Error("좋아요 처리 실패");
-        return res.json() as Promise<{ liked: boolean; likes: number }>;
-    },
+  async fetchCategories() {
+    const { data } = await api.get<ApiResponse<CategoryNode[]>>("/note/categories");
+    return responseBody(data);
+  },
 
-    async comments(id: string): Promise<Comment[]> {
-        const res = await fetch(`${BASE}/notes/${id}/comments`);
-        if (!res.ok) throw new Error("댓글 목록 조회 실패");
-        return res.json() as Promise<Comment[]>; // ✅ 여기서 타입 고정
-    },
+  async createCategory(payload: CategoryCreatePayload) {
+    const { data } = await api.post<ApiResponse<CategoryNode>>("/note/categories", payload);
+    return responseBody(data);
+  },
 
-    async addComment(id: string, content: string): Promise<Comment> {
-        const res = await fetch(`${BASE}/notes/${id}/comments`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ content }),
-        });
-        if (!res.ok) throw new Error("댓글 작성 실패");
-        return res.json() as Promise<Comment>; // ✅ 타입 고정
-    },
-
-
-
-    async deleteComment(id: string, commentId: string) {
-        const res = await fetch(`${BASE}/notes/${id}/comments/${commentId}`, { method: "DELETE" });
-        if (!res.ok) throw new Error("댓글 삭제 실패");
-    },
-
-    async uploadImage(file: File) {
-        const form = new FormData();
-        form.append("file", file);
-        const res = await fetch(`${BASE}/files`, { method: "POST", body: form });
-        if (!res.ok) throw new Error("이미지 업로드 실패");
-        return res.json() as Promise<{ url: string }>;
-    },
-
-    async categoryTree() {
-        const res = await fetch(`${BASE}/categories`);
-        if (!res.ok) throw new Error("카테고리 조회 실패");
-        return res.json();
-    },
-
-    async saveCategory(id: string, name: string) {
-        const res = await fetch(`${BASE}/categories/${id}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name }),
-        });
-        if (!res.ok) throw new Error("카테고리 저장 실패");
-        return res.json();
-    },
+  async uploadAsset(file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+    const { data } = await api.post<ApiResponse<AssetUploadResponse>>("/note/assets", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return responseBody(data);
+  },
 };
+
+export default NoteService;
