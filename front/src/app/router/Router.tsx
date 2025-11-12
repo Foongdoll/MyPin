@@ -12,6 +12,8 @@ import Setting from "../../pages/setting/Setting";
 import { useSessionStore } from "../../state/session.store";
 import { HttpProvider } from "../provider/HttpProvider";
 import { NavermapsProvider } from "react-naver-maps";
+import NotesFormAndDetailPreview from "../../pages/notes/NoteDetail";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 const CLIENT_KEY = import.meta.env.VITE_NAVER_MAPS_KEY;
 
 
@@ -56,29 +58,34 @@ const ProtectedLayout = () => {
   return isAuthenticated ? <Layout /> : <Navigate to="/login" replace />;
 };
 
+const queryClient = new QueryClient();
+
 const Router = () => {
   return (
 
     <BrowserRouter>
       <HttpProvider>
         <NavermapsProvider ncpKeyId={CLIENT_KEY} submodules={["geocoder"]}>
-          <Routes>
-            <Route element={<PublicOnly />}>
-              <Route index element={<Login />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/join" element={<Join />} />
-            </Route>
+          <QueryClientProvider client={queryClient}>
+            <Routes>
+              <Route element={<PublicOnly />}>
+                <Route index element={<Login />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/join" element={<Join />} />
+              </Route>
 
 
-            <Route element={<ProtectedLayout />}>
-              <Route path="/home" element={<Home />} />
-              <Route path="/schedule" element={<Schedule />} />
-              <Route path="/notes" element={<Notes />} />
-              <Route path="/ledger" element={<Ledger />} />
-              <Route path="/settings" element={<Setting />} />
-            </Route>
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+              <Route element={<ProtectedLayout />}>
+                <Route path="/home" element={<Home />} />
+                <Route path="/schedule" element={<Schedule />} />
+                <Route path="/notes" element={<Notes />} />
+                <Route path="/note/detail" element={<NotesFormAndDetailPreview />} />
+                <Route path="/ledger" element={<Ledger />} />
+                <Route path="/settings" element={<Setting />} />
+              </Route>
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </QueryClientProvider>
         </NavermapsProvider>
       </HttpProvider>
     </BrowserRouter>

@@ -8,7 +8,7 @@ import ScheduleCreateForm from "./ScheduleCreateForm";
 import { motion } from "framer-motion"
 import ExpandedCommentTooltip from "./CommentTooltip";
 import { useSessionStore } from "../../state/session.store";
-import { LucideShare2, Map, MessageSquareShare, ScreenShare, Share } from "lucide-react";
+import { LucideShare2, Map } from "lucide-react";
 import ScheduleMaps from "../../shared/lib/naverMaps/Maps";
 
 const PAGE_BLOCK_SIZE = 5;
