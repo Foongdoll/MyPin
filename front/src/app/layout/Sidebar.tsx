@@ -1,5 +1,5 @@
 import { Home, Calendar, Book, Wallet, Settings, X } from "lucide-react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import { useUiStore } from "../../state/ui.store";
 
 const navItems = [
@@ -12,7 +12,8 @@ const navItems = [
 
 const Sidebar = () => {
   const { sidebarOpen, toggleSidebar } = useUiStore();
-
+  const { pathname } = useLocation();    
+  
   return (
     <>
       {/* 데스크탑: 항상 보임 (md 이상) */}
@@ -23,13 +24,12 @@ const Sidebar = () => {
               key={path}
               to={path}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-4 py-3 rounded-xl transition-colors hover:-translate-1  ${
-                  isActive
-                    ? "bg-blue-100 text-blue-700 font-semibold"
-                    : "hover:bg-gray-100 text-gray-700 "
+                `flex items-center gap-3 px-4 py-3 rounded-xl transition-colors hover:-translate-1  ${isActive || (pathname.indexOf("note") !== -1 && path.indexOf("note") !== -1)
+                  ? "bg-blue-100 text-blue-700 font-semibold"
+                  : "hover:bg-gray-100 text-gray-700 "
                 }`
-              }          
-            >
+              }
+            >              
               <Icon className="w-5 h-5" />
               {label}
             </NavLink>
@@ -40,14 +40,12 @@ const Sidebar = () => {
         </div>
       </aside>
 
-      {/* 모바일: 드로어 (sidebarOpen으로 토글) */}
+      
       <div className={`fixed inset-0 z-40 md:hidden ${sidebarOpen ? "" : "pointer-events-none"}`}>
-        {/* Dimmed */}
         <div
           className={`absolute inset-0 bg-black/40 transition-opacity ${sidebarOpen ? "opacity-100" : "opacity-0"}`}
           onClick={toggleSidebar}
-        />
-        {/* Panel */}
+        />      
         <div
           className={`absolute left-0 top-0 h-full w-72 bg-white shadow-xl transition-transform duration-200
             ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
@@ -67,10 +65,9 @@ const Sidebar = () => {
                 to={path}
                 onClick={toggleSidebar}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                    isActive
-                      ? "bg-blue-100 text-blue-700 font-semibold"
-                      : "hover:bg-gray-50 text-gray-700"
+                  `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${isActive || (pathname.indexOf("note") !== -1 && path.indexOf("note") !== -1)
+                    ? "bg-blue-100 text-blue-700 font-semibold"
+                    : "hover:bg-gray-50 text-gray-700"
                   }`
                 }
               >
