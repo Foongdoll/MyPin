@@ -75,7 +75,9 @@ const Schedule = () => {
   const [commentAction, setCommentAction] = useState<{ type: "edit" | "delete"; id: string | number | null } | null>(null);
 
   const openCommentDrawer = (commentId: string) => {
-    setCommentFocusId(commentId);
+    if (commentId !== '') {
+      setCommentFocusId(commentId);
+    }
     setCommentDrawerOpen(true);
   };
   const closeCommentDrawer = () => {
@@ -495,9 +497,26 @@ const Schedule = () => {
                 {selectedSchedule
                   ? isLoadingComments
                     ? "댓글을 불러오는 중입니다..."
-                    : `총 ${selectedScheduleComments.length}개의 댓글`
+                    : (<>
+                      총 {selectedScheduleComments.length}개의 댓글
+                      <motion.button
+                        key={'k'}
+                        type="button"
+                        onClick={() => openCommentDrawer("")}
+                        className="
+                          ml-5 rounded-2xl border border-slate-100 bg-slate-50/80 p-3 text-left shadow-sm
+                          transition
+                          hover:shadow-md active:scale-[0.995] focus:outline-none focus:ring-2 focus:ring-emerald-300/60
+                        "
+                      >
+                        댓글보기
+                      </motion.button>
+                    </>)
                   : "일정을 먼저 선택해주세요."}
+
+
               </p>
+
             </div>
             <button
               type="button"
@@ -514,49 +533,6 @@ const Schedule = () => {
                 {isMutatingLike && selectedSchedule ? " · 처리 중" : ""}
               </span>
             </button>
-          </div>
-
-          <div className="mt-4 flex-1 space-y-3 overflow-y-auto pr-1">
-            {selectedSchedule ? (
-              isLoadingComments ? (
-                <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-400">
-                  댓글을 불러오는 중입니다...
-                </div>
-              ) : selectedScheduleComments.length > 0 ? (
-                <div className="flex flex-col gap-3">
-                  {selectedScheduleComments.map((comment) => (
-                    <motion.button
-                      key={comment.id}
-                      type="button"
-                      onClick={() => openCommentDrawer(String(comment.id))}
-                      className="
-          rounded-2xl border border-slate-100 bg-slate-50/80 p-4 text-left shadow-sm
-          transition
-          hover:shadow-md active:scale-[0.995] focus:outline-none focus:ring-2 focus:ring-emerald-300/60
-        "
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-sm font-semibold text-slate-800">{comment.author}</span>
-                        <span className="text-xs text-slate-400">
-                          {new Date(comment.createdAt).toLocaleString()}
-                        </span>
-                      </div>
-                      <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-slate-600">
-                        {comment.content}
-                      </p>
-                    </motion.button>
-                  ))}
-                </div>
-              ) : (
-                <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-400">
-                  아직 댓글이 없습니다. 첫 댓글을 남겨보세요!
-                </div>
-              )
-            ) : (
-              <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-400">
-                우측 리스트에서 일정을 선택하면 댓글을 볼 수 있어요.
-              </div>
-            )}
           </div>
 
           <form onSubmit={handleCommentSubmit} className="mt-4 flex flex-col gap-4 text-left">
@@ -605,7 +581,7 @@ const Schedule = () => {
         pendingAction={commentAction}
       />
 
-      {isMapVisible && <ScheduleMaps setVisible={setIsMapVisible} />}
+      {isMapVisible && <ScheduleMaps setVisible={setIsMapVisible} addr={selectedSchedule?.place || ''} />}
     </div>
   );
 };

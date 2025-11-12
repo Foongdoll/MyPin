@@ -121,7 +121,7 @@ export default function ExpandedCommentTooltip({
                     >
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
-                          <p className="text-sm font-semibold text-slate-900">{comment.author}</p>
+                          <p className="text-sm font-semibold text-slate-900">{comment.author} {isMine && (<span className="border border-blue-400 bg-blue-200 px-2 rounded-2xl">me</span>)}</p>
                           <p className="text-xs text-slate-400">
                             {new Date(comment.createdAt).toLocaleString()}
                           </p>

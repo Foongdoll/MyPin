@@ -31,7 +31,7 @@ const useSchedule = () => {
   const [participant, setParticipant] = useState<string[]>([]);
   const [memo, setMemo] = useState("");
   const [place, setPlace] = useState("");
-  const sessionUserName = useSessionStore((state) => state.user?.name ?? "?占쎈챸");
+  const sessionUserName = useSessionStore((state) => state.user?.name ?? "익명");
 
   const [isFormView, setIsFormView] = useState(false);
 

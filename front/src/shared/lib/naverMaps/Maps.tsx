@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { createPortal } from "react-dom";
 import { Container, Marker, NaverMap, useNavermaps } from "react-naver-maps";
 
 type Props = {
-  setVisible: (b: boolean) => void;
-  addr: string; // 다음 주소 API에서 전달된 주소 문자열
+  setVisible: Dispatch<SetStateAction<boolean>>;
+  addr: string | null; 
 };
 
 const ScheduleMaps = ({ setVisible, addr }: Props) => {
@@ -43,7 +43,7 @@ const ScheduleMaps = ({ setVisible, addr }: Props) => {
         const result = response.v2?.addresses?.[0];
         if (result) {
           const lat = parseFloat(result.y);
-          const lng = parseFloat(result.x);
+          const lng = parseFloat(result.x);          
           setCoords({ lat, lng });
         } else {
           setCoords(null);
@@ -93,20 +93,18 @@ const ScheduleMaps = ({ setVisible, addr }: Props) => {
                 height: "100%",
               }}
             >
-              <NaverMap
-                defaultCenter={new navermaps.LatLng(37.5665, 126.9780)} // 기본 서울 좌표
+              <NaverMap                
                 center={
                   coords
                     ? new navermaps.LatLng(coords.lat, coords.lng)
                     : new navermaps.LatLng(37.5665, 126.9780)
-                }
-                defaultZoom={14}
+                }                
                 zoom={coords ? 16 : 14} // 좌표 있을 경우 좀 더 확대
               >
                 {coords && (
                   <Marker
                     position={new navermaps.LatLng(coords.lat, coords.lng)}
-                    title={addr}
+                    title={addr || ''}
                   />
                 )}
               </NaverMap>

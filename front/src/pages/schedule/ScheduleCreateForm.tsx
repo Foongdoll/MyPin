@@ -3,9 +3,7 @@ import type { ScheduleCreateFormProp } from "../../shared/types/ScheduleType";
 import { motion, AnimatePresence } from "framer-motion";
 import DatePicker from "react-datepicker";
 import { useState } from "react";
-import DaumPostcode from "../../shared/lib/daumPostCode/DaumPostCode";
 import DaumPostcodeModal from "../../shared/lib/daumPostCode/DaumPostCode";
-import { geocodeAddress } from "../../shared/lib/naverMaps/geocodeApi";
 
 const ScheduleCreateForm = ({
   isFormView,
@@ -137,7 +135,7 @@ const ScheduleCreateForm = ({
                     className="flex-1 rounded-lg border border-slate-200 p-3 focus:outline-none focus:ring-2 focus:ring-indigo-300"
                     placeholder="장소를 입력하세요"
                     value={place}
-                    onChange={(e) => setPlace(e.target.value)}
+                    disabled                    
                   />
                   <button
                     type="button"
@@ -151,8 +149,7 @@ const ScheduleCreateForm = ({
                 {isPostVisible && (
                   <DaumPostcodeModal
                     onSelect={(data) => {
-                      setPlace(data.address);
-                      console.log("위도:", data.lat, "경도:", data.lng);
+                      setPlace(data.address);                                            
                       setIsPostVisible(false);
                     }}
                     onClose={() => setIsPostVisible(false)}

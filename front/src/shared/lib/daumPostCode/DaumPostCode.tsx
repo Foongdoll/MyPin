@@ -1,21 +1,18 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import api from "../axios";
+import { useNavermaps } from "react-naver-maps";
 
 type Props = {
-  onSelect: (data: { address: string; lat?: string; lng?: string }) => void;
+  onSelect: (data: { address: string; lat?: number; lng?: number }) => void;
   onClose: () => void;
 };
-
-async function fetchGeocode(address: string) {
-  const res = await api.get("/geocode", { params: { query: address } });
-  return res.data as { address: string; latitude?: string; longitude?: string };
-}
 
 const DaumPostcodeModal = ({ onSelect, onClose }: Props) => {
   const backdropRef = useRef<HTMLDivElement | null>(null);
   const embedRef = useRef<HTMLDivElement | null>(null);
-  
+
+  const navermaps = useNavermaps();
+
   useEffect(() => {
     let removed = false;
     const prevOverflow = document.body.style.overflow;
@@ -47,14 +44,31 @@ const DaumPostcodeModal = ({ onSelect, onClose }: Props) => {
             if (extra) fullAddress += ` (${extra})`;
           }
 
-          try {
-            // ✅ Spring Boot 서버에 주소로 위도/경도 요청
-            const res = await fetchGeocode(fullAddress);
-            onSelect({
-              address: res.address || fullAddress,
-              lat: res.latitude,
-              lng: res.longitude,
-            });
+          try {                        
+            if (!fullAddress || !navermaps?.Service) return;
+        
+            navermaps.Service.geocode(
+              { query: fullAddress },
+              (status: any, response: any) => {                
+                if (status !== navermaps.Service.Status.OK) {
+                  console.warn("지오코딩 실패:", status);
+                  return;
+                }
+
+                const result = response.v2?.addresses?.[0];                
+                if (result) {
+                  const lat = parseFloat(result.y);
+                  const lng = parseFloat(result.x);
+                  
+                  onSelect({
+                    address: fullAddress,
+                    lat: lat,
+                    lng: lng,
+                  });                  
+                } 
+              }
+            );
+
           } catch {
             onSelect({ address: fullAddress });
           }

@@ -61,7 +61,7 @@ const Router = () => {
 
     <BrowserRouter>
       <HttpProvider>
-        <NavermapsProvider ncpKeyId={CLIENT_KEY}>
+        <NavermapsProvider ncpKeyId={CLIENT_KEY} submodules={["geocoder"]}>
           <Routes>
             <Route element={<PublicOnly />}>
               <Route index element={<Login />} />
