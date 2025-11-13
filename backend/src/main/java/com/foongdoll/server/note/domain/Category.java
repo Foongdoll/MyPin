@@ -20,6 +20,9 @@ public class Category {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "owner_id", nullable = false, length = 50)
+    private String ownerId;
+
     /** 프론트에서 쓰는 key (예: dev, front1, front-c-1) */
     @Column(name = "code", nullable = false, length = 64, unique = true)
     private String code;

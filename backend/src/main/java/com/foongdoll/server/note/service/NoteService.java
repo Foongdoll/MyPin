@@ -8,6 +8,7 @@ import com.foongdoll.server.note.model.Dtos;
 import com.foongdoll.server.note.repository.NoteCategoryRepository;
 import com.foongdoll.server.note.repository.NoteRepository;
 import com.foongdoll.server.note.repository.TagRepository;
+import com.foongdoll.server.security.service.SecurityUtils;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.*;
 import org.springframework.data.domain.*;
@@ -25,6 +26,7 @@ import java.util.stream.Collectors;
  * NOTE/CATEGORY 비즈니스 로직
  * - 검색(제목/내용), 카테고리(해당 노드 + 하위) 필터, 페이징(6개), 이전/다음 여부 포함
  * - 카테고리 트리 CRUD (Materialized Path + Adjacency List 조합 가정)
+ * - 🔹 멀티 유저: 로그인 사용자(ownerId/author) 기준으로 격리
  */
 @Service
 @Transactional(readOnly = true)
@@ -45,25 +47,47 @@ public class NoteService {
         this.tagRepository = tagRepository;
     }
 
-    /* ===================== NOTE ===================== */
+    /* ===================== 공통 유틸: 현재 사용자 ===================== */
 
-    public Dtos.NoteListResponse getNotes(int page, int pageSize, String q, String categoryCode, String categoryPath) {
+    private String currentUserId() {
+        var principal = SecurityUtils.getAuthenticatedUser();
+        if (principal == null) {
+            throw new IllegalStateException("인증된 사용자가 없습니다.");
+        }
+        // userId / username / email 중 실제로 사용하는 값으로 통일
+        return principal.getNickname();
+    }
+
+    /* ===================== NOTE (내 노트만) ===================== */
+
+    public Dtos.NoteListResponse getNotes(int page, int pageSize,
+                                          String q,
+                                          String categoryCode,
+                                          String categoryPath) {
+
+        String ownerId = currentUserId();
+
         int safePage = Math.max(page, 1) - 1;                // 0-based
         int safeSize = pageSize > 0 ? pageSize : DEFAULT_PAGE_SIZE;
 
-        // 카테고리 경로 결정: code가 들어오면 code로 Category path 조회
+        // 카테고리 경로 결정: code가 들어오면 code로 Category path 조회 (내 카테고리에서만)
         String pathPrefix = null;
         if (categoryPath != null && !categoryPath.isBlank()) {
             pathPrefix = normalizePathPrefix(categoryPath);
         } else if (categoryCode != null && !categoryCode.isBlank()) {
-            Category cat = categoryRepository.findByCode(categoryCode)
+            Category cat = categoryRepository.findByOwnerIdAndCode(ownerId, categoryCode)
                     .orElseThrow(() -> new EntityNotFoundException("Category not found: " + categoryCode));
             pathPrefix = normalizePathPrefix(cat.getPath());
         }
 
-        Pageable pageable = PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "date", "id"));
+        Pageable pageable = PageRequest.of(
+                safePage,
+                safeSize,
+                Sort.by(Sort.Direction.DESC, "date", "id")
+        );
+
         Page<Note> pageResult = noteRepository.findAll(
-                specFor(q, pathPrefix),
+                specFor(q, pathPrefix, ownerId),
                 pageable
         );
 
@@ -82,19 +106,29 @@ public class NoteService {
     }
 
     public Dtos.NoteDetailResponse getNote(Long id) {
+        String ownerId = currentUserId();
+
         Note note = noteRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Note not found: " + id));
+
+        // 🔹 내 노트만 접근 가능
+        if (!ownerId.equals(note.getAuthor())) {
+            throw new EntityNotFoundException("Note not found: " + id);
+        }
+
         return toDetail(note);
     }
 
     @Transactional
     public Dtos.NoteDetailResponse createNote(Dtos.NoteCreateRequest req) {
-        Category category = categoryBy(req.getCategoryCode(), req.getCategoryId());
+        String ownerId = currentUserId();
+        Category category = categoryBy(req.getCategoryCode(), req.getCategoryId(), ownerId);
 
         Note note = Note.builder()
                 .title(req.getTitle())
                 .snippet(generateSnippet(req.getSnippet(), req.getContent()))
-                .author(req.getAuthor())
+                // 🔹 프론트에서 넘어온 author 무시하고 서버에서 강제 세팅
+                .author(ownerId)
                 .date(Optional.ofNullable(req.getDate()).orElse(LocalDate.now()))
                 .views(Optional.ofNullable(req.getViews()).orElse(0))
                 .category(category)
@@ -111,18 +145,25 @@ public class NoteService {
 
     @Transactional
     public Dtos.NoteDetailResponse updateNote(Long id, Dtos.NoteUpdateRequest req) {
+        String ownerId = currentUserId();
+
         Note note = noteRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Note not found: " + id));
 
+        // 🔹 소유자 검증
+        if (!ownerId.equals(note.getAuthor())) {
+            throw new EntityNotFoundException("Note not found: " + id);
+        }
+
         if (req.getTitle() != null) note.setTitle(req.getTitle());
-        if (req.getAuthor() != null) note.setAuthor(req.getAuthor());
+        // 🔹 author는 변경 불가 (보안상)
         if (req.getDate() != null) note.setDate(req.getDate());
         if (req.getViews() != null) note.setViews(req.getViews());
         if (req.getCoverImageUrl() != null) note.setCoverImageUrl(req.getCoverImageUrl());
         if (req.getContent() != null) note.setContent(req.getContent());
 
         if (req.getCategoryId() != null || StringUtils.hasText(req.getCategoryCode())) {
-            Category category = categoryBy(req.getCategoryCode(), req.getCategoryId());
+            Category category = categoryBy(req.getCategoryCode(), req.getCategoryId(), ownerId);
             note.setCategory(category);
         }
 
@@ -144,36 +185,66 @@ public class NoteService {
 
     @Transactional
     public void deleteNote(Long id) {
-        if (!noteRepository.existsById(id)) return;
-        noteRepository.deleteById(id);
+        String ownerId = currentUserId();
+
+        Note note = noteRepository.findById(id)
+                .orElse(null);
+        if (note == null) return;
+
+        if (!ownerId.equals(note.getAuthor())) {
+            // 남의 노트는 없는 것처럼 처리
+            throw new EntityNotFoundException("Note not found: " + id);
+        }
+
+        noteRepository.delete(note);
     }
 
-    /* ===================== CATEGORY ===================== */
+    /* ===================== CATEGORY (내 카테고리만) ===================== */
 
     public List<Dtos.CategoryNode> getCategoryTree() {
-        List<Category> all = categoryRepository.findAll(Sort.by(Sort.Direction.ASC, "depth", "sortOrder", "id"));
+        String ownerId = currentUserId();
+
+        List<Category> all = categoryRepository
+                .findAllByOwnerIdOrderByDepthAscSortOrderAscIdAsc(ownerId);
+
         return buildTree(all);
     }
 
     public Dtos.CategoryNode getCategoryNode(Long id) {
+        String ownerId = currentUserId();
+
         Category c = categoryRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Category not found: " + id));
+
+        if (!ownerId.equals(c.getOwnerId())) {
+            throw new EntityNotFoundException("Category not found: " + id);
+        }
+
         return toNode(c);
     }
 
     @Transactional
     public Dtos.CategoryNode createCategory(Dtos.CategoryCreateRequest req) {
+        String ownerId = currentUserId();
+
         Category parent = null;
         if (req.getParentId() != null) {
             parent = categoryRepository.findById(req.getParentId())
                     .orElseThrow(() -> new EntityNotFoundException("Parent not found: " + req.getParentId()));
+
+            if (!ownerId.equals(parent.getOwnerId())) {
+                throw new IllegalStateException("다른 사용자의 카테고리를 부모로 지정할 수 없습니다.");
+            }
         }
+
         Category c = Category.builder()
+                .ownerId(ownerId) // 🔹 소유자 세팅
                 .code(req.getCode())
                 .label(req.getLabel())
                 .parent(parent)
                 .sortOrder(Optional.ofNullable(req.getSortOrder()).orElse(0))
                 .build();
+
         Category saved = categoryRepository.save(c);
         // path/depth는 @PrePersist에서 자동 계산된다고 가정
         return toNode(saved);
@@ -181,16 +252,25 @@ public class NoteService {
 
     @Transactional
     public Dtos.CategoryNode updateCategory(Long id, Dtos.CategoryUpdateRequest req) {
+        String ownerId = currentUserId();
+
         Category c = categoryRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Category not found: " + id));
 
+        if (!ownerId.equals(c.getOwnerId())) {
+            throw new EntityNotFoundException("Category not found: " + id);
+        }
+
         if (req.getLabel() != null) c.setLabel(req.getLabel());
-        if (req.getCode() != null)  c.setCode(req.getCode());
+        if (req.getCode() != null) c.setCode(req.getCode());
         if (req.getSortOrder() != null) c.setSortOrder(req.getSortOrder());
 
         if (req.getParentId() != null) {
             Category parent = categoryRepository.findById(req.getParentId())
                     .orElseThrow(() -> new EntityNotFoundException("Parent not found: " + req.getParentId()));
+            if (!ownerId.equals(parent.getOwnerId())) {
+                throw new IllegalStateException("다른 사용자의 카테고리를 부모로 지정할 수 없습니다.");
+            }
             c.setParent(parent); // path/depth는 @PreUpdate에서 재계산
         } else if (Boolean.TRUE.equals(req.getDetachParent())) {
             c.setParent(null);
@@ -201,8 +281,17 @@ public class NoteService {
 
     @Transactional
     public void deleteCategory(Long id) {
+        String ownerId = currentUserId();
+
+        Category c = categoryRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Category not found: " + id));
+
+        if (!ownerId.equals(c.getOwnerId())) {
+            throw new EntityNotFoundException("Category not found: " + id);
+        }
+
         // 전략: 하위가 있거나 Note가 참조 중이면 예외 처리/제약
-        boolean hasChildren = categoryRepository.existsByParentId(id);
+        boolean hasChildren = categoryRepository.existsByOwnerIdAndParentId(ownerId, id);
         if (hasChildren) {
             throw new IllegalStateException("하위 카테고리가 존재합니다. 먼저 하위를 정리하세요.");
         }
@@ -210,7 +299,7 @@ public class NoteService {
         if (inUse) {
             throw new IllegalStateException("해당 카테고리를 참조하는 노트가 있습니다.");
         }
-        categoryRepository.deleteById(id);
+        categoryRepository.delete(c);
     }
 
     /* ===================== 내부 유틸/스펙/매핑 ===================== */
@@ -222,25 +311,30 @@ public class NoteService {
         return p;
     }
 
-    private Specification<Note> specFor(String q, String pathPrefix) {
+    /** 🔹 검색 + 카테고리 + 로그인 사용자(author) 필터 */
+    private Specification<Note> specFor(String q, String pathPrefix, String ownerId) {
         return (root, query, cb) -> {
             List<jakarta.persistence.criteria.Predicate> preds = new ArrayList<>();
 
             if (q != null && !q.isBlank()) {
                 String like = "%" + q.toLowerCase() + "%";
                 var title = cb.like(cb.lower(root.get("title")), like);
-                // 내용 필드가 엔티티에 있다면 content로 검색
                 var content = cb.like(cb.lower(root.get("content")), like);
                 var snippet = cb.like(cb.lower(root.get("snippet")), like);
                 preds.add(cb.or(title, snippet, content));
             }
+
+            // 🔹 작성자 = 현재 사용자
+            preds.add(cb.equal(root.get("author"), ownerId));
 
             if (pathPrefix != null) {
                 // denorm 캐시를 우선 사용
                 preds.add(cb.like(root.get("categoryPath"), pathPrefix + "%"));
             }
 
-            return preds.isEmpty() ? cb.conjunction() : cb.and(preds.toArray(new jakarta.persistence.criteria.Predicate[0]));
+            return preds.isEmpty()
+                    ? cb.conjunction()
+                    : cb.and(preds.toArray(new jakarta.persistence.criteria.Predicate[0]));
         };
     }
 
@@ -290,13 +384,18 @@ public class NoteService {
                 .build();
     }
 
-    private Category categoryBy(String code, Long id) {
+    /** 🔹 현재 사용자(ownerId) 기준으로 카테고리 찾기 */
+    private Category categoryBy(String code, Long id, String ownerId) {
         if (id != null) {
-            return categoryRepository.findById(id)
+            Category c = categoryRepository.findById(id)
                     .orElseThrow(() -> new EntityNotFoundException("Category not found: " + id));
+            if (!ownerId.equals(c.getOwnerId())) {
+                throw new EntityNotFoundException("Category not found: " + id);
+            }
+            return c;
         }
         if (code != null && !code.isBlank()) {
-            return categoryRepository.findByCode(code)
+            return categoryRepository.findByOwnerIdAndCode(ownerId, code)
                     .orElseThrow(() -> new EntityNotFoundException("Category not found: " + code));
         }
         throw new IllegalArgumentException("카테고리 식별자(categoryId 또는 categoryCode)가 필요합니다.");
@@ -403,7 +502,10 @@ public class NoteService {
     }
 
     private static void sortRec(Dtos.CategoryNode n) {
-        n.getChildren().sort(Comparator.comparing(Dtos.CategoryNode::getSortOrder).thenComparing(Dtos.CategoryNode::getId));
+        n.getChildren().sort(
+                Comparator.comparing(Dtos.CategoryNode::getSortOrder)
+                        .thenComparing(Dtos.CategoryNode::getId)
+        );
         n.getChildren().forEach(NoteService::sortRec);
     }
 
