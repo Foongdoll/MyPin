@@ -40,3 +40,29 @@
   display: inline-block;
 }
 
+:root {
+  font-family: "Jua", sans-serif;
+  font-optical-sizing: auto;
+}
+
+/* Align markdown editor caret with rendered text by forcing matching font/line-height */
+.w-md-editor-text-pre,
+.w-md-editor-text-pre > code,
+.w-md-editor-text-input {
+  font-family: "Pretendard", "Spoqa Han Sans Neo", "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif !important;
+  font-size: 15px !important;
+  line-height: 1.65 !important;
+  letter-spacing: -0.012em !important;
+  font-feature-settings: "ss05" 1, "cv11" 1, "kern" 1;
+  tab-size: 2;
+  text-rendering: optimizeLegibility;
+}
+
+.w-md-editor-text-pre {
+  white-space: pre-wrap !important;
+}
+
+.w-md-editor-text-input {
+  caret-color: #0f172a;
+}
