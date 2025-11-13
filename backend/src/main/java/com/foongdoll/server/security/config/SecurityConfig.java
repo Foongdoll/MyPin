@@ -37,8 +37,8 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .headers(headers -> headers.frameOptions(frameOptions -> frameOptions.disable()))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**", "/h2-console/**", "/docs/**", "/actuator/**", "/api/geocode").permitAll()
-                        .requestMatchers("/api/schedules/**", "/api/note/**").hasRole("USER")
+                        .requestMatchers("/api/auth/**", "/docs/**", "/actuator/**", "/api/geocode", "/uploads/**").permitAll()
+                        .requestMatchers("/api/schedules/**", "/api/note/**", "/api/ledger/**").hasRole("USER")
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(httpSecurityExceptionHandlingConfigurer -> {
