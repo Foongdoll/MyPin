@@ -5,12 +5,13 @@ import { Link, useSearchParams } from "react-router-dom";
 import MDEditor from "@uiw/react-md-editor";
 import "@uiw/react-md-editor/markdown-editor.css";
 import "@uiw/react-markdown-preview/markdown.css";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import NoteService from "../../features/note/NoteService";
 import type { NoteDetail as NoteDetailType, NoteSectionBlock } from "../../shared/types/NoteType";
 import { flattenCategories } from "../../features/note/utils";
 import { useSessionStore } from "../../state/session.store";
+import { resolveAssetUrl } from "../../shared/lib/assetUrl";
 
 type SectionForm = NoteSectionBlock & { localId: string };
 type NoteFormState = {
@@ -36,6 +37,62 @@ const emptyState = (author: string) => ({
   tags: [],
   sections: [],
 });
+
+const markdownComponents: Components = {
+  img: ({ ...props }) => {
+    const { style, src, alt, ...rest } = props;
+    const resolved = resolveAssetUrl(src);
+    return (
+      <img
+        {...rest}
+        src={resolved || undefined}
+        alt={alt ?? ""}
+        loading="lazy"
+        style={{ maxWidth: "100%", height: "auto", ...style }}
+      />
+    );
+  },
+  a: ({ ...props }) => {
+    const isAnchorLink = props.href?.startsWith("#");
+    return (
+      <a
+        {...props}
+        target={isAnchorLink ? props.target : "_blank"}
+        rel={isAnchorLink ? props.rel : "noopener noreferrer"}
+      />
+    );
+  },
+};
+
+const MarkdownRenderer = ({
+  value,
+  className,
+  emptyPlaceholder = "아직 작성된 내용이 없어요.",
+}: {
+  value?: string | null;
+  className?: string;
+  emptyPlaceholder?: string;
+}) => {
+  if (!value || value.trim().length === 0) {
+    return (
+      <p className={`text-sm text-slate-400 ${className ?? ""}`.trim()}>
+        {emptyPlaceholder}
+      </p>
+    );
+  }
+
+  const content = (
+    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+      {value}
+    </ReactMarkdown>
+  );
+
+  if (className) {
+    return <div className={className}>{content}</div>;
+  }
+
+  return content;
+};
 
 const NotesFormAndDetailPreview = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -344,6 +401,15 @@ const NotesFormAndDetailPreview = () => {
                         <ImageIcon className="h-4 w-4" /> 본문에 이미지 삽입
                       </button>
                     </div>
+                    <div className="mt-4 rounded-2xl border border-slate-200 bg-white/80 p-4">
+                      <div className="mb-3 flex items-center justify-between text-xs font-semibold text-slate-500">
+                        <span>실시간 미리보기</span>
+                        <span className="font-normal text-slate-400">이미지 경로는 자동으로 보정돼요</span>
+                      </div>
+                      <article className="prose prose-slate max-w-none text-sm">
+                        <MarkdownRenderer value={formState.content} emptyPlaceholder="마크다운으로 본문을 작성하면 이곳에서 바로 확인할 수 있어요." />
+                      </article>
+                    </div>
                   </div>
                 </div>
                 <div className="space-y-5 md:col-span-4">
@@ -352,9 +418,14 @@ const NotesFormAndDetailPreview = () => {
                     <div className="space-y-3">
                       {formState.coverImageUrl ? (
                         <img
-                          src={formState.coverImageUrl}
+                          src={resolveAssetUrl(formState.coverImageUrl)}
                           alt="cover"
                           className="h-40 w-full rounded-xl object-cover"
+                          onError={(event) => {
+                            event.currentTarget.onerror = null;
+                            updateForm("coverImageUrl", "");
+                            setStatus({ type: "error", message: "대표 이미지를 불러오지 못했어요. 다시 업로드해 주세요." });
+                          }}
                         />
                       ) : (
                         <div className="flex h-40 w-full items-center justify-center rounded-xl border border-dashed border-slate-300 text-xs text-slate-400">
@@ -588,7 +659,7 @@ const SectionEditor = ({ section, index, onChange, onRemove, onMove, onUpload, u
             </button>
             {section.imageUrl && (
               <a
-                href={section.imageUrl}
+                href={resolveAssetUrl(section.imageUrl)}
                 target="_blank"
                 rel="noreferrer"
                 className="text-xs text-blue-600 underline"
@@ -664,19 +735,19 @@ const DetailView = ({ detail, isLoading }: { detail?: NoteDetailType; isLoading:
       </div>
       {detail.coverImageUrl && (
         <img
-          src={detail.coverImageUrl}
+          src={resolveAssetUrl(detail.coverImageUrl)}
           alt="cover"
           className="w-full rounded-2xl border border-slate-200 object-cover shadow-sm"
+          onError={(event) => {
+            event.currentTarget.onerror = null;
+            event.currentTarget.style.display = "none";
+          }}
         />
       )}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
         <article className="md:col-span-2 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="prose prose-slate max-w-none">
-            {detail.content ? (
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{detail.content}</ReactMarkdown>
-            ) : (
-              <p className="text-sm text-slate-400">본문 내용이 없습니다.</p>
-            )}
+            <MarkdownRenderer value={detail.content} emptyPlaceholder="본문 내용이 아직 등록되지 않았어요." />
           </div>
         </article>
         <aside className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -711,11 +782,15 @@ const DetailView = ({ detail, isLoading }: { detail?: NoteDetailType; isLoading:
             <div key={`${section.title}-${idx}`} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <h4 className="text-base font-semibold text-slate-800">{section.title || `섹션 ${idx + 1}`}</h4>
               {section.imageUrl && (
-                <img src={section.imageUrl} alt={section.title ?? "section"} className="mt-3 w-full rounded-xl object-cover" />
+                <img
+                  src={resolveAssetUrl(section.imageUrl)}
+                  alt={section.title ?? "section"}
+                  className="mt-3 w-full rounded-xl object-cover"
+                />
               )}
               {section.description && (
                 <div className="prose prose-slate mt-3 max-w-none text-sm">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{section.description}</ReactMarkdown>
+                  <MarkdownRenderer value={section.description} />
                 </div>
               )}
             </div>
