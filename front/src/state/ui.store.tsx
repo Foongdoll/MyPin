@@ -6,6 +6,8 @@ interface UiState {
   sidebarOpen: boolean
   setTheme: (t: 'light' | 'dark') => void
   toggleSidebar: () => void
+  chatOpen: boolean
+  toggleChatOpen: () => void
 }
 
 export const useUiStore = create<UiState>()(
@@ -15,10 +17,12 @@ export const useUiStore = create<UiState>()(
       sidebarOpen: true,
       setTheme: (t) => set({ theme: t }),
       toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
+      chatOpen: false,
+      toggleChatOpen: () => set((e) => ({ chatOpen: !e.chatOpen }))
     }),
     {
       name: 'ui-storage',
-      storage: createJSONStorage(() => localStorage),   
+      storage: createJSONStorage(() => localStorage),
       partialize: (s) => ({ theme: s.theme, sidebarOpen: s.sidebarOpen }),
     }
   )

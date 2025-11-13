@@ -1,4 +1,4 @@
-import { Home, Calendar, Book, Wallet, Settings, X } from "lucide-react";
+import { Home, Calendar, Book, Wallet, Settings, X, MessageSquareDot } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useUiStore } from "../../state/ui.store";
 
@@ -7,6 +7,7 @@ const navItems = [
   { icon: Calendar, label: "일정", path: "/schedule" },
   { icon: Book, label: "노트", path: "/notes" },
   { icon: Wallet, label: "가계부", path: "/ledger" },
+  { icon: MessageSquareDot, label: "채팅", path: "/chat" },
   { icon: Settings, label: "설정", path: "/settings" },
 ];
 

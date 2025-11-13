@@ -14,6 +14,10 @@ import { HttpProvider } from "../provider/HttpProvider";
 import { NavermapsProvider } from "react-naver-maps";
 import NotesFormAndDetailPreview from "../../pages/notes/NoteDetail";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import Chat, { FloatingActionMenu } from "../../pages/chat/Chat.tsx";
+import { WebSocketProvider } from "../provider/WebSocketProvider.tsx";
+import { Clock, Mail, MessageCircle, Users } from "lucide-react";
+import { useUiStore } from "../../state/ui.store.tsx";
 const CLIENT_KEY = import.meta.env.VITE_NAVER_MAPS_KEY;
 
 
@@ -61,30 +65,68 @@ const ProtectedLayout = () => {
 const queryClient = new QueryClient();
 
 const Router = () => {
-  return (
+  const { chatOpen, toggleChatOpen } = useUiStore();
 
+  return (
     <BrowserRouter>
       <HttpProvider>
         <NavermapsProvider ncpKeyId={CLIENT_KEY} submodules={["geocoder"]}>
           <QueryClientProvider client={queryClient}>
-            <Routes>
-              <Route element={<PublicOnly />}>
-                <Route index element={<Login />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/join" element={<Join />} />
-              </Route>
+            <WebSocketProvider>
+              <Routes>
+                <Route element={<PublicOnly />}>
+                  <Route index element={<Login />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/join" element={<Join />} />
+                </Route>
 
-
-              <Route element={<ProtectedLayout />}>
-                <Route path="/home" element={<Home />} />
-                <Route path="/schedule" element={<Schedule />} />
-                <Route path="/notes" element={<Notes />} />
-                <Route path="/note/detail" element={<NotesFormAndDetailPreview />} />
-                <Route path="/ledger" element={<Ledger />} />
-                <Route path="/settings" element={<Setting />} />
-              </Route>
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
+                <Route element={<ProtectedLayout />}>
+                  <Route path="/home" element={<Home />} />
+                  <Route path="/schedule" element={<Schedule />} />
+                  <Route path="/notes" element={<Notes />} />
+                  <Route path="/note/detail" element={<NotesFormAndDetailPreview />} />
+                  <Route path="/ledger" element={<Ledger />} />
+                  <Route path="/chat" element={<Chat />} />
+                  <Route path="/settings" element={<Setting />} />
+                </Route>
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+              {/* 플로팅 메뉴 */}
+              <FloatingActionMenu
+                open={chatOpen}
+                onToggle={toggleChatOpen}
+                items={[
+                  {
+                    icon: <MessageCircle className="h-4 w-4" />,
+                    label: "1:1 채팅 만들기",
+                    onClick: () => {
+                      // TODO: 1:1 채팅 생성 모달 열기
+                    },
+                  },
+                  {
+                    icon: <Users className="h-4 w-4" />,
+                    label: "그룹 채팅 만들기",
+                    onClick: () => {
+                      // TODO: 그룹 채팅 생성 모달 열기
+                    },
+                  },
+                  {
+                    icon: <Clock className="h-4 w-4" />,
+                    label: "예약 메시지",
+                    onClick: () => {
+                      // TODO: 예약 메시지 관리/생성
+                    },
+                  },
+                  {
+                    icon: <Mail className="h-4 w-4" />,
+                    label: "예약 메일",
+                    onClick: () => {
+                      // TODO: 예약 메일 관리/생성
+                    },
+                  },
+                ]}
+              />
+            </WebSocketProvider>
           </QueryClientProvider>
         </NavermapsProvider>
       </HttpProvider>
