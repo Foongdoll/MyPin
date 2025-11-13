@@ -6,7 +6,9 @@ import com.foongdoll.server.auth.dto.LoginResponse;
 import com.foongdoll.server.auth.dto.RefreshResponse;
 import com.foongdoll.server.auth.dto.UserSummary;
 import com.foongdoll.server.security.jwt.JwtUtils;
+import com.foongdoll.server.user.domain.Role;
 import com.foongdoll.server.user.domain.User;
+import com.foongdoll.server.user.repository.RoleRepository;
 import com.foongdoll.server.user.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +24,7 @@ import org.springframework.util.StringUtils;
 public class AuthService {
 
     private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtUtils jwtUtils;
@@ -33,12 +36,16 @@ public class AuthService {
             throw new IllegalArgumentException("이미 사용 중인 아이디입니다.");
         }
 
+        Role role = roleRepository.findByName("ROLE_USER");
+
+
         User user = userRepository.save(
                 User.builder()
                         .userId(request.getUserId().trim())
                         .password(passwordEncoder.encode(request.getPassword()))
                         .name(request.getName().trim())
                         .email(StringUtils.hasText(request.getEmail()) ? request.getEmail().trim() : null)
+                        .role(role)
                         .build()
         );
 

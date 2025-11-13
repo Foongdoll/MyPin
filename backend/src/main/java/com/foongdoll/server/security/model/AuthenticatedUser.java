@@ -15,13 +15,15 @@ public class AuthenticatedUser implements UserDetails {
     private final Long id;
     private final String username;
     private final String password;
+    private final String nickname;
     private final Collection<? extends GrantedAuthority> authorities;
 
-    private AuthenticatedUser(Long id, String username, String password,
+    private AuthenticatedUser(Long id, String username, String password, String nickname,
                               Collection<? extends GrantedAuthority> authorities) {
         this.id = id;
         this.username = username;
         this.password = password;
+        this.nickname = nickname;
         this.authorities = authorities;
     }
 
@@ -30,6 +32,7 @@ public class AuthenticatedUser implements UserDetails {
                 user.getId(),
                 user.getUserId(),
                 user.getPassword(),
+                user.getName(),
                 Collections.singletonList(new SimpleGrantedAuthority(user.getRole().getName()))
         );
     }
