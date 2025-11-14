@@ -1,8 +1,9 @@
 package com.foongdoll.server.websocket.handler;
 
 import com.foongdoll.server.websocket.dto.ChatMessage;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foongdoll.server.websocket.service.ChatMessageService;
+import com.foongdoll.server.websocket.service.ChatSessionRegistry;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -10,8 +11,7 @@ import org.springframework.web.socket.*;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import java.io.IOException;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Set;
 
 @Slf4j
 @Component
@@ -19,19 +19,14 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ChatWebSocketHandler extends TextWebSocketHandler {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final ChatMessageService chatMessageService; // 🔹 주입
-
-
-    /** 세션 → 참가 중인 방 ID 목록 */
-    private final Map<WebSocketSession, Set<String>> sessionRooms = new ConcurrentHashMap<>();
-
-    /** roomId → 세션 목록 */
-    private final Map<String, Set<WebSocketSession>> roomSessions = new ConcurrentHashMap<>();
+    private final ChatMessageService chatMessageService;
+    private final ChatSessionRegistry chatSessionRegistry;
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
-        log.info("WebSocket connected: {}", session.getId());
-        sessionRooms.put(session, ConcurrentHashMap.newKeySet());
+        Long userId = (Long) session.getAttributes().get("userId");
+        chatSessionRegistry.register(session, userId);
+        log.info("WebSocket connected: {} (user={})", session.getId(), userId);
     }
 
     @Override
@@ -48,36 +43,24 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         if (msg.getType() == null) return;
 
         switch (msg.getType()) {
-            case "ping"       -> handlePing(session, msg);
-            case "chat.join"  -> handleJoin(session, msg);
+            case "ping" -> handlePing(session, msg);
+            case "chat.join" -> handleJoin(session, msg);
             case "chat.leave" -> handleLeave(session, msg);
-            case "chat.send"  -> handleSend(session, msg); // 🔹 여기서 Redis 저장+브로드캐스트
+            case "chat.send" -> handleSend(session, msg);
             default -> log.warn("Unknown message type: {}", msg.getType());
         }
     }
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-        log.info("WebSocket closed: {} ({})", session.getId(), status);
-        // 세션이 참여했던 모든 방에서 제거
-        Set<String> rooms = sessionRooms.remove(session);
-        if (rooms != null) {
-            for (String roomId : rooms) {
-                Set<WebSocketSession> sessions = roomSessions.get(roomId);
-                if (sessions != null) {
-                    sessions.remove(session);
-                    if (sessions.isEmpty()) {
-                        roomSessions.remove(roomId);
-                    }
-                }
-            }
+        Set<String> rooms = chatSessionRegistry.unregister(session);
+        for (String roomId : rooms) {
+            chatMessageService.flushRoom(roomId);
         }
+        log.info("WebSocket closed: {} ({})", session.getId(), status);
     }
 
-    /* ----- handlers ----- */
-
     private void handlePing(WebSocketSession session, ChatMessage msg) throws IOException {
-        // 단순히 pong 내려주거나, 무시해도 됨
         msg.setType("pong");
         msg.setTs(System.currentTimeMillis());
         session.sendMessage(new TextMessage(objectMapper.writeValueAsString(msg)));
@@ -87,12 +70,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         String roomId = msg.getRoomId();
         if (roomId == null || roomId.isBlank()) return;
 
-        sessionRooms.computeIfAbsent(session, s -> ConcurrentHashMap.newKeySet())
-                .add(roomId);
-
-        roomSessions.computeIfAbsent(roomId, r -> ConcurrentHashMap.newKeySet())
-                .add(session);
-
+        chatSessionRegistry.joinRoom(session, roomId);
         log.info("session {} joined room {}", session.getId(), roomId);
     }
 
@@ -100,19 +78,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         String roomId = msg.getRoomId();
         if (roomId == null || roomId.isBlank()) return;
 
-        Set<String> rooms = sessionRooms.get(session);
-        if (rooms != null) {
-            rooms.remove(roomId);
-        }
-
-        Set<WebSocketSession> sessions = roomSessions.get(roomId);
-        if (sessions != null) {
-            sessions.remove(session);
-            if (sessions.isEmpty()) {
-                roomSessions.remove(roomId);
-            }
-        }
-
+        chatSessionRegistry.leaveRoom(session, roomId);
         log.info("session {} left room {}", session.getId(), roomId);
     }
 
@@ -122,18 +88,12 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
 
         msg.setType("chat.message");
         msg.setTs(System.currentTimeMillis());
+        msg.setSenderId(String.valueOf(chatSessionRegistry.getUserId(session)));
 
-        // 🔹 Redis에 먼저 저장
         chatMessageService.saveToRedis(msg);
 
         String json = objectMapper.writeValueAsString(msg);
         TextMessage textMessage = new TextMessage(json);
-
-        Set<WebSocketSession> sessions = roomSessions.getOrDefault(roomId, Collections.emptySet());
-        for (WebSocketSession s : sessions) {
-            if (s.isOpen()) {
-                s.sendMessage(textMessage);
-            }
-        }
+        chatSessionRegistry.broadcastToRoom(roomId, textMessage);
     }
 }

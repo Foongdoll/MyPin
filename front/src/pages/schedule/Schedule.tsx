@@ -234,7 +234,7 @@ const Schedule = () => {
             switch (e.value) {
               case "list":
                 return (
-                  <div className="w-full min-w-0">
+                  <div className="w-full min-w-0" key={e.value}>
                     {/* 상단 영역(탭/버튼 등)은 유지한다고 가정 */}
 
                     {/* 카드 컨테이너 */}

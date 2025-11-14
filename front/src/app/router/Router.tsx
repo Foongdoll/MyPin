@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Outlet, Navigate } from "react-router-dom";
+﻿import { BrowserRouter, Routes, Route, Outlet, Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import Home from "../../pages/home/Home";
 import Login from "../../pages/auth/Login";
@@ -14,12 +14,12 @@ import { HttpProvider } from "../provider/HttpProvider";
 import { NavermapsProvider } from "react-naver-maps";
 import NotesFormAndDetailPreview from "../../pages/notes/NoteDetail";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import Chat, { FloatingActionMenu } from "../../pages/chat/Chat.tsx";
-import { WebSocketProvider } from "../provider/WebSocketProvider.tsx";
+import Chat, { FloatingActionMenu } from "../../pages/chat/Chat";
+import { WebSocketProvider } from "../provider/WebSocketProvider";
 import { Clock, Mail, MessageCircle, Users } from "lucide-react";
-import { useUiStore } from "../../state/ui.store.tsx";
-const CLIENT_KEY = import.meta.env.VITE_NAVER_MAPS_KEY;
+import { useUiStore } from "../../state/ui.store";
 
+const CLIENT_KEY = import.meta.env.VITE_NAVER_MAPS_KEY;
 
 const Layout = () => (
   <div className="flex flex-col min-h-screen bg-gray-50 text-gray-800">
@@ -66,13 +66,18 @@ const queryClient = new QueryClient();
 
 const Router = () => {
   const { chatOpen, toggleChatOpen } = useUiStore();
+  const accessToken = useSessionStore((state) => state.accessToken);
+
+  const emit = (eventName: string) => {
+    window.dispatchEvent(new CustomEvent(eventName));
+  };
 
   return (
     <BrowserRouter>
       <HttpProvider>
         <NavermapsProvider ncpKeyId={CLIENT_KEY} submodules={["geocoder"]}>
           <QueryClientProvider client={queryClient}>
-            <WebSocketProvider>
+            <WebSocketProvider token={accessToken ?? undefined}>
               <Routes>
                 <Route element={<PublicOnly />}>
                   <Route index element={<Login />} />
@@ -91,7 +96,7 @@ const Router = () => {
                 </Route>
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
-              {/* 플로팅 메뉴 */}
+
               <FloatingActionMenu
                 open={chatOpen}
                 onToggle={toggleChatOpen}
@@ -99,30 +104,22 @@ const Router = () => {
                   {
                     icon: <MessageCircle className="h-4 w-4" />,
                     label: "1:1 채팅 만들기",
-                    onClick: () => {
-                      // TODO: 1:1 채팅 생성 모달 열기
-                    },
+                    onClick: () => emit("chat:create-dm"),
                   },
                   {
                     icon: <Users className="h-4 w-4" />,
                     label: "그룹 채팅 만들기",
-                    onClick: () => {
-                      // TODO: 그룹 채팅 생성 모달 열기
-                    },
+                    onClick: () => emit("chat:create-group"),
                   },
                   {
                     icon: <Clock className="h-4 w-4" />,
                     label: "예약 메시지",
-                    onClick: () => {
-                      // TODO: 예약 메시지 관리/생성
-                    },
+                    onClick: () => emit("chat:schedule-message"),
                   },
                   {
                     icon: <Mail className="h-4 w-4" />,
                     label: "예약 메일",
-                    onClick: () => {
-                      // TODO: 예약 메일 관리/생성
-                    },
+                    onClick: () => emit("chat:schedule-mail"),
                   },
                 ]}
               />
@@ -131,7 +128,6 @@ const Router = () => {
         </NavermapsProvider>
       </HttpProvider>
     </BrowserRouter>
-
   );
 };
 

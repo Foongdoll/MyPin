@@ -1,23 +1,60 @@
+export type PresenceStatus = "online" | "offline" | "busy";
+export type FriendshipState = "PENDING" | "ACCEPTED" | "REJECTED" | "BLOCKED";
+
 export type Friend = {
   id: number;
   name: string;
-  status: "online" | "offline" | "busy";
+  presence: PresenceStatus;
+  relationshipStatus: FriendshipState;
+  blocked: boolean;
+};
+
+export type FriendRequest = {
+  requestId: number;
+  requesterId: number;
+  requesterName: string;
+  receiverId: number;
+  receiverName: string;
+  status: FriendshipState;
+  createdAt: number;
+};
+
+export type ChatRoomMember = {
+  userId: number;
+  name: string;
+  admin: boolean;
 };
 
 export type ChatRoom = {
-  id: number;
+  roomKey: string;
   name: string;
   type: "dm" | "group";
-  lastMessage: string;
+  muted: boolean;
+  members: ChatRoomMember[];
+  lastMessage?: ChatMessage;
   unread: number;
 };
 
-export type Message = {
-  id: number;
-  author: "me" | "other";
-  name?: string;
+export type ChatMessage = {
+  id: string;
+  authorId: string;
+  authorName?: string;
   content: string;
-  time: string;
+  ts: number;
   type: "text" | "image" | "video" | "emoji";
+  mediaUrl?: string;
   scheduled?: boolean;
+};
+
+export type ScheduledItemType = "chat" | "email";
+
+export type ScheduledItem = {
+  id: number;
+  type: ScheduledItemType;
+  roomKey?: string;
+  subject?: string;
+  message: string;
+  recipients?: string[];
+  scheduledAt: number;
+  status: "PENDING" | "SENT" | "CANCELLED";
 };

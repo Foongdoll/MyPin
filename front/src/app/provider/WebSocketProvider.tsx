@@ -61,7 +61,7 @@ export const WebSocketProvider = ({
 
   const resolveUrl = () => {
     const base =
-      url || (import.meta as any).env?.VITE_WS_URL;
+      url || (import.meta as any).env?.VITE_WS_DEPLOY_URL;
 
     if (!token) return base;
 

@@ -12,7 +12,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
-import java.util.*;
+import java.util.List;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -24,23 +25,38 @@ public class ChatMessageService {
     private final RedisTemplate<String, ChatRedisMessage> chatRedisTemplate;
     private final ChatMessageEntityRepository chatMessageEntityRepository;
 
-    /** 🔹 WebSocket에서 메시지 들어올 때 Redis에 먼저 저장 */
     public void saveToRedis(ChatMessage msg) {
         ChatRedisMessage redisMsg = ChatRedisMessage.from(msg);
         String key = CHAT_KEY_PREFIX + redisMsg.getRoomId();
 
         chatRedisTemplate.opsForList().rightPush(key, redisMsg);
-
-        // 필요하면 TTL도 걸어둠 (예: 24시간)
         chatRedisTemplate.expire(key, Duration.ofHours(24));
     }
 
-    /**
-     * 🔹 주기적으로 Redis → DB로 flush
-     *   - 예: 5분마다
-     *   - Redis keys 사용 (규모 커지면 다른 방식 고려)
-     */
-    @Scheduled(cron = "0 */5 * * * *") // 매 5분마다
+    @Transactional(readOnly = true)
+    public List<ChatRedisMessage> loadRecentMessages(String roomId, int limit) {
+        int fetchSize = Math.min(Math.max(limit, 1), 100);
+        List<ChatMessageEntity> entities = chatMessageEntityRepository.findTop100ByRoomIdOrderByTsDesc(roomId);
+        return entities.stream()
+                .limit(fetchSize)
+                .map(ChatRedisMessage::fromEntity)
+                .sorted((a, b) -> Long.compare(a.getTs(), b.getTs()))
+                .toList();
+    }
+
+    @Transactional
+    public void flushRoom(String roomId) {
+        String key = CHAT_KEY_PREFIX + roomId;
+        List<ChatRedisMessage> list = chatRedisTemplate.opsForList().range(key, 0, -1);
+        if (list == null || list.isEmpty()) {
+            return;
+        }
+        persistMessages(list);
+        chatRedisTemplate.delete(key);
+        log.info("Flushed {} messages from room {} to DB", list.size(), roomId);
+    }
+
+    @Scheduled(cron = "0 */5 * * * *")
     @Transactional
     public void flushRedisToDb() {
         String pattern = CHAT_KEY_PREFIX + "*";
@@ -56,16 +72,17 @@ public class ChatMessageService {
                 continue;
             }
 
-            List<ChatMessageEntity> entities = list.stream()
-                    .map(ChatMessageEntity::fromRedis)
-                    .toList();
-
-            chatMessageEntityRepository.saveAll(entities);
-
-            // flush 후 Redis에서 삭제
+            persistMessages(list);
             chatRedisTemplate.delete(key);
 
             log.info("Flushed {} messages from Redis key {} to DB", list.size(), key);
         }
+    }
+
+    private void persistMessages(List<ChatRedisMessage> list) {
+        List<ChatMessageEntity> entities = list.stream()
+                .map(ChatMessageEntity::fromRedis)
+                .toList();
+        chatMessageEntityRepository.saveAll(entities);
     }
 }
