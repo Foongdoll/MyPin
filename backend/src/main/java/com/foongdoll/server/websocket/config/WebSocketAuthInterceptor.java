@@ -40,7 +40,7 @@ public class WebSocketAuthInterceptor implements HandshakeInterceptor {
         try {
             String username = jwtUtils.extractUsername(token);
             User user = userRepository.findByUserId(username)
-                    .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+                    .orElseThrow(() -> new IllegalArgumentException("."));
             attributes.put("userId", user.getId());
             attributes.put("userName", user.getName());
             return true;
